@@ -1,0 +1,93 @@
+name: Build & Publish AppBundle to APS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'bundle/**'
+      - '.github/workflows/build-and-publish.yml'
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+env:
+  # Revit engine version to target
+  ENGINE_VERSION: "2024"
+  BUNDLE_NAME: "RevitExtractor"
+  ALIAS: "prod"
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest          # MUST be Windows — Revit SDK is Windows-only
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ── 2. Setup .NET ──────────────────────────────────────────────────────
+      - name: Setup .NET Framework build tools
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      # ── 3. Restore NuGet packages ──────────────────────────────────────────
+      - name: Restore NuGet packages
+        run: nuget restore src/RevitExtractor/RevitExtractor.csproj
+
+      # ── 4. Build the plugin DLL ────────────────────────────────────────────
+      - name: Build RevitExtractor.dll
+        run: |
+          msbuild src/RevitExtractor/RevitExtractor.csproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:OutputPath="../../bundle/RevitExtractor.bundle/Contents/"
+        shell: pwsh
+
+      # ── 5. Verify DLL was produced ─────────────────────────────────────────
+      - name: List bundle contents
+        run: Get-ChildItem -Recurse bundle/
+        shell: pwsh
+
+      # ── 6. Zip the .bundle folder ──────────────────────────────────────────
+      - name: Create AppBundle zip
+        run: |
+          Compress-Archive `
+            -Path bundle/RevitExtractor.bundle `
+            -DestinationPath RevitExtractor.zip `
+            -Force
+        shell: pwsh
+
+      # ── 7. Upload the zip as a workflow artifact (useful for debugging) ────
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RevitExtractor-bundle
+          path: RevitExtractor.zip
+
+      # ── 8. Publish AppBundle to APS ────────────────────────────────────────
+      - name: Publish AppBundle to APS
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+        run: |
+          node scripts/publish-appbundle.js
+        shell: bash
+
+      # ── 9. Publish Activity definition ─────────────────────────────────────
+      - name: Publish Activity to APS
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+        run: |
+          node scripts/publish-activity.js
+        shell: bash
+
+      # ── 10. Summary ─────────────────────────────────────────────────────────
+      - name: Summary
+        run: |
+          echo "✅ AppBundle '${{ env.BUNDLE_NAME }}+${{ env.ALIAS }}' published."
+          echo "✅ Activity 'ExtractRevitData+${{ env.ALIAS }}' published."
+          echo "   Engine  : Autodesk.Revit+${{ env.ENGINE_VERSION }}"
+          echo "   Outputs : result.json + result.csv"
+        shell: bash
