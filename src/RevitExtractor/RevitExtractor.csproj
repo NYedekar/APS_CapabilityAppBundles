@@ -20,6 +20,7 @@
       RevitAPI / RevitAPIUI are excluded from output — Revit injects them at runtime.
     -->
    <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
   <!--
