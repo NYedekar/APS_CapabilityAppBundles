@@ -52,20 +52,43 @@ jobs:
       # ── 6. Zip the .bundle folder ──────────────────────────────────────────
       - name: Prepare bundle contents
         run: |
-          # Copy .addin file into Contents/ alongside the compiled DLL
-          Copy-Item bundle/RevitExtractor.bundle/RevitExtractor.addin `
-            bundle/RevitExtractor.bundle/Contents/RevitExtractor.addin -Force
-          # Show what's in the bundle so we can verify
-          Write-Host "=== Bundle contents ==="
+          # Show full bundle structure before zip
+          Write-Host "=== Bundle structure ==="
+          Get-ChildItem -Recurse bundle/
+          Write-Host "=== Contents of zip will include ==="
           Get-ChildItem -Recurse bundle/RevitExtractor.bundle/
         shell: pwsh
 
       - name: Create AppBundle zip
         run: |
+          # The .addin file must be at the ROOT of the .bundle folder
+          # NOT inside Contents/ - Revit DA searches the package root
+          $bundlePath = "bundle/RevitExtractor.bundle"
+          $addinSrc   = "$bundlePath/RevitExtractor.addin"
+          
+          # Verify .addin exists at bundle root
+          if (Test-Path $addinSrc) {
+            Write-Host "✅ .addin found at bundle root: $addinSrc"
+          } else {
+            Write-Host "❌ .addin NOT found at: $addinSrc"
+            exit 1
+          }
+
+          # Verify DLL was compiled into Contents/
+          $dllPath = "$bundlePath/Contents/RevitExtractor.dll"
+          if (Test-Path $dllPath) {
+            Write-Host "✅ DLL found: $dllPath"
+          } else {
+            Write-Host "❌ DLL NOT found at: $dllPath"
+            exit 1
+          }
+
           Compress-Archive `
-            -Path bundle/RevitExtractor.bundle `
+            -Path $bundlePath `
             -DestinationPath RevitExtractor.zip `
             -Force
+
+          Write-Host "✅ Zip created"
         shell: pwsh
 
       # ── 7. Upload the zip as a workflow artifact (useful for debugging) ────
