@@ -77,7 +77,7 @@ jobs:
           # Zip CONTENTS of the bundle folder so PackageContents.xml
           # is at the ROOT of the zip — required by APS DA runtime
           Compress-Archive `
-            -Path "$bundle" `
+            -Path "$bundle\*" `
             -DestinationPath RevitExtractor.zip `
             -Force
 
