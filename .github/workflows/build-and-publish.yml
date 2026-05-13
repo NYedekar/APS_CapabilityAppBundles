@@ -70,6 +70,7 @@ jobs:
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
         run: |
           node scripts/publish-appbundle.js
         shell: bash
@@ -79,6 +80,7 @@ jobs:
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
         run: |
           node scripts/publish-activity.js
         shell: bash
