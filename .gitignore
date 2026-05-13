@@ -1,5 +1,8 @@
 bin/
 obj/
+*.user
+.vs/
 *.zip
 *.nupkg
-bundle/RevitExtractor.bundle/Contents/
+bundle/RevitExtractor.bundle/Contents/*.dll
+bundle/RevitExtractor.bundle/Contents/*.pdb
