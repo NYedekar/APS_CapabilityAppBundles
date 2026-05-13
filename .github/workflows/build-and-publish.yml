@@ -63,7 +63,7 @@ jobs:
         run: |
           # The .addin file must be at the ROOT of the .bundle folder
           # NOT inside Contents/ - Revit DA searches the package root
-          $bundlePath = "bundle/RevitExtractor.bundle"
+          $bundlePath = "bundle/RevitExtractor.bundle/*"
           $addinSrc   = "$bundlePath/RevitExtractor.addin"
           
           # Verify .addin exists at bundle root
