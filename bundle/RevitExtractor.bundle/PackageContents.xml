@@ -2,7 +2,7 @@
 <ApplicationPackage SchemaVersion="1.0"
                     AutodeskProduct="Revit"
                     Name="RevitExtractor"
-                    Description="Extracts model data (rooms, walls, floors, elements, project info) to a JSON report."
+                    Description="Extracts all Revit instance and type parameters to JSON and CSV."
                     AppVersion="1.0.0"
                     SupportedLocales="Enu"
                     ProductType="Application"
@@ -13,13 +13,9 @@
   <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
 
   <Components Description="RevitExtractor core plugin">
-    <!--
-      ModuleName: the DLL APS loads.
-      AppName:    must match the IExternalDBApplication class assembly name.
-    -->
     <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
-    <ComponentEntry ModuleName="./RevitExtractor.dll"
-                    AppName="RevitExtractor"
+    <ComponentEntry AppName="RevitExtractor"
+                    ModuleName="./Contents/RevitExtractor.dll"
                     Version="1.0.0"
                     LoadOnRevitStartup="True" />
   </Components>
