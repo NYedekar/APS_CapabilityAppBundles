@@ -196,7 +196,7 @@ namespace RevitExtractor
                 {
                     results.Add(new ElementData
                     {
-                        ElementId          = elem.Id.IntegerValue.ToString(),
+                        ElementId          = elem.Id.Value.ToString(),
                         FamilyType         = GetFamilyTypeName(elem),
                         InstanceParameters = ReadParameters(elem),
                         TypeParameters     = ReadTypeParameters(elem),
@@ -310,7 +310,7 @@ namespace RevitExtractor
                     StorageType.ElementId =>
                         p.AsElementId() == ElementId.InvalidElementId
                             ? ""
-                            : (p.AsValueString() ?? p.AsElementId().IntegerValue.ToString()),
+                            : (p.AsValueString() ?? p.AsElementId().Value.ToString()),
 
                     _ => ""
                 };
@@ -338,16 +338,16 @@ namespace RevitExtractor
     {
         // ── JSON ──────────────────────────────────────────────────────────────
 
-      internal static void WriteJson(ModelReport report)
-{
-    var settings = new JsonSerializerSettings
-    {
-        Formatting        = Formatting.Indented,
-        NullValueHandling = NullValueHandling.Ignore,
-    };
-    File.WriteAllText("result.json", JsonConvert.SerializeObject(report, settings));
-    Console.WriteLine("[RevitExtractor] result.json written");
-}
+        internal static void WriteJson(ModelReport report)
+        {
+            var settings = new JsonSerializerSettings
+            {
+                Formatting        = Formatting.Indented,
+                NullValueHandling = NullValueHandling.Ignore,
+            };
+            File.WriteAllText("result.json", JsonConvert.SerializeObject(report, settings));
+            Console.WriteLine("[RevitExtractor] result.json written");
+        }
 
         // ── CSV ───────────────────────────────────────────────────────────────
         //
@@ -398,8 +398,10 @@ namespace RevitExtractor
             sb.AppendLine(string.Join(",", header.Select(CsvEscape)));
 
             // Rows
-            foreach (var (category, elements) in report.Categories)
+            foreach (var kvp in report.Categories)
             {
+                var category = kvp.Key;
+                var elements = kvp.Value;
                 foreach (var elem in elements)
                 {
                     var row = new List<string>
