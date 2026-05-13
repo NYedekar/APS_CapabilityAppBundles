@@ -13,15 +13,11 @@
   </PropertyGroup>
 
   <!-- Revit 2024 API reference assemblies (no runtime copy needed — Revit provides them) -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-    <!--
-      DesignAutomationBridge provides IExternalDBApplication bridge for cloud execution.
-      RevitAPI / RevitAPIUI are excluded from output — Revit injects them at runtime.
-    -->
-   <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" ExcludeAssets="runtime" />
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
-  </ItemGroup>
+<ItemGroup>
+  <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" ExcludeAssets="runtime" />
+  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+</ItemGroup>
 
   <!--
     RevitAPI.dll and RevitAPIUI.dll must be referenced from a local Revit 2024 installation
