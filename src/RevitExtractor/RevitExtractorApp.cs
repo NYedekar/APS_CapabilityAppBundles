@@ -338,16 +338,16 @@ namespace RevitExtractor
     {
         // ── JSON ──────────────────────────────────────────────────────────────
 
-     internal static void WriteJson(ModelReport report)
-{
-    var settings = new JsonSerializerSettings
-    {
-        Formatting = Formatting.Indented,
-        NullValueHandling = NullValueHandling.Ignore,
-    };
-    File.WriteAllText("result.json", JsonConvert.SerializeObject(report, settings));
-    Console.WriteLine("[RevitExtractor] result.json written");
-}
+        internal static void WriteJson(ModelReport report)
+        {
+            var settings = new JsonSerializerSettings
+            {
+                Formatting        = Formatting.Indented,
+                NullValueHandling = NullValueHandling.Ignore,
+            };
+            File.WriteAllText("result.json", JsonConvert.SerializeObject(report, settings));
+            Console.WriteLine("[RevitExtractor] result.json written");
+        }
 
         // ── CSV ───────────────────────────────────────────────────────────────
         //
