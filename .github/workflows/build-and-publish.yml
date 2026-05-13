@@ -41,7 +41,7 @@ jobs:
           msbuild src/RevitExtractor/RevitExtractor.csproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:OutputPath="../../bundle/RevitExtractor.bundle/Contents/"
+            /p:OutputPath="${{ github.workspace }}\bundle\RevitExtractor.bundle\Contents\"
         shell: pwsh
 
       # ── 5. Verify DLL was produced ─────────────────────────────────────────
