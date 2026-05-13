@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RevitExtractor</AssemblyName>
+    <RootNamespace>RevitExtractor</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>9</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Suppress warnings about Windows-only APIs - expected for Revit plugins -->
+    <NoWarn>CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- Revit 2024 API reference assemblies (no runtime copy needed — Revit provides them) -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!--
+      DesignAutomationBridge provides IExternalDBApplication bridge for cloud execution.
+      RevitAPI / RevitAPIUI are excluded from output — Revit injects them at runtime.
+    -->
+    <PackageReference Include="DesignAutomationBridge" Version="2024.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!--
+    RevitAPI.dll and RevitAPIUI.dll must be referenced from a local Revit 2024 installation
+    on your Windows build machine, OR from the NuGet package below (Windows CI only).
+    Path: C:\Program Files\Autodesk\Revit 2024\
+  -->
+  <ItemGroup Condition="Exists('$(RevitAPIPath)')">
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitAPIPath)\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitAPIPath)\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Fallback: NuGet stubs for CI (set RevitAPIPath env var to override) -->
+  <ItemGroup Condition="!Exists('$(RevitAPIPath)')">
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0"
+                      ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
