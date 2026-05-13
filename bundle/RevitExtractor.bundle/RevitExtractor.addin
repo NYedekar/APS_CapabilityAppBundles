@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Assembly>RevitExtractor.dll</Assembly>
+    <AddInId>b3f2a1c4-8e7d-4f9a-b2c1-3d4e5f6a7b8c</AddInId>
+    <FullClassName>RevitExtractor.RevitExtractorApp</FullClassName>
+    <Name>RevitExtractor</Name>
+    <VendorId>APS</VendorId>
+    <VendorDescription>APS Design Automation</VendorDescription>
+  </AddIn>
+</RevitAddIns>
