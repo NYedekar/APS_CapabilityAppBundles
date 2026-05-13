@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
 
       # ── 6. Zip the .bundle folder ──────────────────────────────────────────
-        - name: Prepare bundle contents
+      - name: Prepare bundle contents
         run: |
           # Copy .addin file into Contents/ alongside the compiled DLL
           Copy-Item bundle/RevitExtractor.bundle/RevitExtractor.addin `
