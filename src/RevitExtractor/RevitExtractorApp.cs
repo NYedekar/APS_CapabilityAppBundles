@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.DB;
 using DesignAutomationFramework;
@@ -339,16 +338,16 @@ namespace RevitExtractor
     {
         // ── JSON ──────────────────────────────────────────────────────────────
 
-        internal static void WriteJson(ModelReport report)
-        {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented          = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            };
-            File.WriteAllText("result.json", JsonSerializer.Serialize(report, options));
-            Console.WriteLine("[RevitExtractor] result.json written");
-        }
+     internal static void WriteJson(ModelReport report)
+{
+    var settings = new JsonSerializerSettings
+    {
+        Formatting = Formatting.Indented,
+        NullValueHandling = NullValueHandling.Ignore,
+    };
+    File.WriteAllText("result.json", JsonConvert.SerializeObject(report, settings));
+    Console.WriteLine("[RevitExtractor] result.json written");
+}
 
         // ── CSV ───────────────────────────────────────────────────────────────
         //
