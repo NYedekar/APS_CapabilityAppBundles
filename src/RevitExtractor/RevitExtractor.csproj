@@ -19,7 +19,7 @@
       DesignAutomationBridge provides IExternalDBApplication bridge for cloud execution.
       RevitAPI / RevitAPIUI are excluded from output — Revit injects them at runtime.
     -->
-    <PackageReference Include="DesignAutomationBridge" Version="2024.0.0" ExcludeAssets="runtime" />
+   <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <!--
