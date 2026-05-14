@@ -55,13 +55,10 @@ jobs:
         run: |
           $bundle = "bundle\RevitExtractor.bundle"
 
-          # Copy .addin into Contents/ alongside the DLL
-          Copy-Item "$bundle\RevitExtractor.addin" "$bundle\Contents\RevitExtractor.addin" -Force
-
           Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse $bundle
 
-          # Verify
+          # Verify exact structure matches official Autodesk DA for Revit spec
           if (-not (Test-Path "$bundle\PackageContents.xml"))           { Write-Error "Missing PackageContents.xml"; exit 1 }
           if (-not (Test-Path "$bundle\Contents\RevitExtractor.addin")) { Write-Error "Missing Contents\RevitExtractor.addin"; exit 1 }
           if (-not (Test-Path "$bundle\Contents\RevitExtractor.dll"))   { Write-Error "Missing Contents\RevitExtractor.dll"; exit 1 }
@@ -70,6 +67,7 @@ jobs:
           Write-Host "✅ Contents\RevitExtractor.addin found"
           Write-Host "✅ Contents\RevitExtractor.dll found"
 
+          # Zip with bundle wrapper — official spec requires *.bundle folder in zip root
           Compress-Archive -Path $bundle -DestinationPath RevitExtractor.zip -Force
 
           Write-Host "=== Zip internal structure ==="
