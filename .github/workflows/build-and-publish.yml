@@ -41,7 +41,7 @@ jobs:
           msbuild src/RevitExtractor/RevitExtractor.csproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:OutputPath="${{ github.workspace }}\bundle\RevitExtractor.bundle\"
+            /p:OutputPath="${{ github.workspace }}\bundle\RevitExtractor.bundle\Contents\"
         shell: pwsh
 
       # ── 5. Verify DLL was produced ─────────────────────────────────────────
@@ -50,21 +50,25 @@ jobs:
         shell: pwsh
 
       # ── 6. Zip the .bundle folder ──────────────────────────────────────────
+     
       - name: Prepare and zip bundle
         run: |
           $bundle = "bundle\RevitExtractor.bundle"
 
+          # Copy .addin into Contents/ alongside the DLL
+          Copy-Item "$bundle\RevitExtractor.addin" "$bundle\Contents\RevitExtractor.addin" -Force
+
           Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse $bundle
 
-          # Verify required files
-          if (-not (Test-Path "$bundle\PackageContents.xml"))  { Write-Error "Missing PackageContents.xml"; exit 1 }
-          if (-not (Test-Path "$bundle\RevitExtractor.addin")) { Write-Error "Missing RevitExtractor.addin"; exit 1 }
-          if (-not (Test-Path "$bundle\RevitExtractor.dll"))   { Write-Error "Missing RevitExtractor.dll"; exit 1 }
+          # Verify
+          if (-not (Test-Path "$bundle\PackageContents.xml"))           { Write-Error "Missing PackageContents.xml"; exit 1 }
+          if (-not (Test-Path "$bundle\Contents\RevitExtractor.addin")) { Write-Error "Missing Contents\RevitExtractor.addin"; exit 1 }
+          if (-not (Test-Path "$bundle\Contents\RevitExtractor.dll"))   { Write-Error "Missing Contents\RevitExtractor.dll"; exit 1 }
 
           Write-Host "✅ PackageContents.xml found"
-          Write-Host "✅ RevitExtractor.addin found"
-          Write-Host "✅ RevitExtractor.dll found"
+          Write-Host "✅ Contents\RevitExtractor.addin found"
+          Write-Host "✅ Contents\RevitExtractor.dll found"
 
           Compress-Archive -Path $bundle -DestinationPath RevitExtractor.zip -Force
 
@@ -76,6 +80,7 @@ jobs:
 
           Write-Host "✅ RevitExtractor.zip created"
         shell: pwsh
+      
       
       # ── 7. Upload the zip as a workflow artifact (useful for debugging) ────
       - name: Upload zip artifact
