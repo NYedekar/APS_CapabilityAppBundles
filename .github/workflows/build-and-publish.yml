@@ -11,7 +11,7 @@ on:
 
 env:
   # Revit engine version to target
-  ENGINE_VERSION: "2024"
+  ENGINE_VERSION: "2026"
   BUNDLE_NAME: "RevitExtractor"
   ALIAS: "prod"
 
