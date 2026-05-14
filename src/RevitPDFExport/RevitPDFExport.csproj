@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RevitPDFExport</AssemblyName>
+    <RootNamespace>RevitPDFExport</RootNamespace>
+    <!--
+      LangVersion 9 — gives us switch expressions, nullable, etc.
+      but avoids C# 8+ features that don't work in net48 (e.g. tuple deconstruction
+      on KeyValuePair, System.Text.Json, default interface members).
+    -->
+    <LangVersion>9</LangVersion>
+    <Nullable>enable</Nullable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Suppress platform-specific API warnings; we know we're running on Windows DA -->
+    <NoWarn>CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Microsoft.NETFramework.ReferenceAssemblies: lets MSBuild compile net48
+      on GitHub Actions Windows runners without a full .NET Framework install.
+    -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"
+                      PrivateAssets="all" />
+
+    <!--
+      Autodesk.Forge.DesignAutomation.Revit: the correct bridge package name.
+      NOT "DesignAutomationBridge" — that name does not exist on NuGet.
+      ExcludeAssets="runtime": Revit provides these DLLs at runtime; do NOT copy to output.
+    -->
+    <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1"
+                      ExcludeAssets="runtime" />
+
+    <!--
+      Revit_All_Main_Versions_API_x64: Revit API reference stubs for compilation.
+      Use 2024.0.0 even for Revit 2026 — stubs compile fine cross-version.
+      ExcludeAssets="runtime": Revit provides the real DLLs at runtime.
+    -->
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0"
+                      ExcludeAssets="runtime" PrivateAssets="all" />
+
+    <!--
+      Newtonsoft.Json: use this for JSON, NOT System.Text.Json.
+      System.Text.Json is not available in net48 without extra work.
+    -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
