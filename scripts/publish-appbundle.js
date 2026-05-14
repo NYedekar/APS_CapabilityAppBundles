@@ -5,9 +5,9 @@ const https = require('https');
 
 const CLIENT_ID     = required('APS_CLIENT_ID');
 const CLIENT_SECRET = required('APS_CLIENT_SECRET');
-const BUNDLE_NAME   = process.env.BUNDLE_NAME    || 'RevitExtractor';
-const ENGINE_VER    = process.env.ENGINE_VERSION || '2024';
-const ALIAS         = process.env.ALIAS          || 'prod';
+const BUNDLE_NAME   = required('BUNDLE_NAME');
+const ENGINE_VER    = required('ENGINE_VERSION');
+const ALIAS         = required('ALIAS');
 const ZIP_PATH      = process.env.BUNDLE_ZIP     || path.join(process.cwd(), `${BUNDLE_NAME}.zip`);
 const ENGINE_ID     = `Autodesk.Revit+${ENGINE_VER}`;
 
@@ -64,10 +64,10 @@ function daHeaders(token) {
 async function createNewVersion(token) {
   console.log(`\n📦 Creating new AppBundle version: ${BUNDLE_NAME}`);
 
-  const payload = JSON.stringify({
-    engine:      ENGINE_ID,
-    description: 'Extracts all Revit instance and type parameters to result.json and result.csv',
-  });
+const payload = JSON.stringify({
+  engine:      ENGINE_ID,
+  description: `${BUNDLE_NAME} plugin`,
+});
 
   // First try: POST to /appbundles (creates bundle + version 1 if brand new)
   // If 409: bundle exists, POST to /appbundles/{id}/versions to add a new version
@@ -76,7 +76,7 @@ async function createNewVersion(token) {
     path:     `/da/us-east/v3/appbundles`,
     method:   'POST',
     headers:  daHeaders(token),
-  }, JSON.stringify({ id: BUNDLE_NAME, engine: ENGINE_ID, description: 'Extracts all Revit parameters' }));
+  }, JSON.stringify({ id: BUNDLE_NAME, engine: ENGINE_ID, description: `${BUNDLE_NAME} plugin` }));
 
   if (res.status === 409) {
     console.log('   Bundle exists — creating new version...');
@@ -92,12 +92,12 @@ async function createNewVersion(token) {
     throw new Error(`HTTP ${res.status}: ${JSON.stringify(res.body)}`);
   }
 
-  console.log(`   ✅ AppBundle version ${res.body.version} ready`);
+  (`   ✅ AppBundle version ${res.body.version} ready`);
   return res.body;
 }
 
 async function uploadZip(uploadParams) {
-  console.log('\n⬆️  Uploading zip to S3...');
+  ('\n⬆️  Uploading zip to S3...');
   const zipBuffer = fs.readFileSync(ZIP_PATH);
   const { endpointURL, formData } = uploadParams;
   if (!endpointURL) throw new Error('No upload URL returned from DA API');
@@ -141,7 +141,7 @@ async function uploadZip(uploadParams) {
       res.on('data', c => data += c);
       res.on('end', () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          console.log('   ✅ Zip uploaded');
+          ('   ✅ Zip uploaded');
           resolve();
         } else {
           reject(new Error(`S3 upload failed: HTTP ${res.statusCode}: ${data}`));
@@ -184,7 +184,7 @@ async function setAlias(token, version) {
 
 (async () => {
   console.log('═══════════════════════════════════════════');
-  console.log(' APS AppBundle Publisher — RevitExtractor  ');
+  console.log(` APS AppBundle Publisher — ${BUNDLE_NAME} `);
   console.log('═══════════════════════════════════════════');
   console.log(`Bundle : ${BUNDLE_NAME}`);
   console.log(`Engine : ${ENGINE_ID}`);
