@@ -15,7 +15,7 @@
   <Components Description="RevitExtractor core plugin">
     <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
     <ComponentEntry AppName="RevitExtractor"
-                    ModuleName="./RevitExtractor.dll"
+                    ModuleName="./Contents/RevitExtractor.addin"
                     Version="1.0.0"
                     LoadOnRevitStartup="True" />
   </Components>
