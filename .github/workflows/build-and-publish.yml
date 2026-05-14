@@ -41,7 +41,7 @@ jobs:
           msbuild src/RevitExtractor/RevitExtractor.csproj `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            /p:OutputPath="${{ github.workspace }}\bundle\RevitExtractor.bundle\Contents\"
+            /p:OutputPath="${{ github.workspace }}\bundle\RevitExtractor.bundle\"
         shell: pwsh
 
       # ── 5. Verify DLL was produced ─────────────────────────────────────────
@@ -54,30 +54,20 @@ jobs:
         run: |
           $bundle = "bundle\RevitExtractor.bundle"
 
-          # Copy .addin into Contents/ so it sits alongside RevitExtractor.dll
-          # Revit searches for .addin in the same directory as ModuleName DLL
-          Copy-Item "$bundle\RevitExtractor.addin" "$bundle\Contents\RevitExtractor.addin" -Force
-
-          # Show exactly what is in the bundle
           Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse $bundle
 
-          # Verify all required files exist at correct paths
-          if (-not (Test-Path "$bundle\PackageContents.xml"))          { Write-Error "Missing PackageContents.xml"; exit 1 }
-          if (-not (Test-Path "$bundle\Contents\RevitExtractor.addin")) { Write-Error "Missing Contents\RevitExtractor.addin"; exit 1 }
-          if (-not (Test-Path "$bundle\Contents\RevitExtractor.dll"))   { Write-Error "Missing Contents\RevitExtractor.dll"; exit 1 }
+          # Verify required files
+          if (-not (Test-Path "$bundle\PackageContents.xml"))  { Write-Error "Missing PackageContents.xml"; exit 1 }
+          if (-not (Test-Path "$bundle\RevitExtractor.addin")) { Write-Error "Missing RevitExtractor.addin"; exit 1 }
+          if (-not (Test-Path "$bundle\RevitExtractor.dll"))   { Write-Error "Missing RevitExtractor.dll"; exit 1 }
 
           Write-Host "✅ PackageContents.xml found"
-          Write-Host "✅ RevitExtractor.addin found in Contents/"
-          Write-Host "✅ RevitExtractor.dll found in Contents/"
+          Write-Host "✅ RevitExtractor.addin found"
+          Write-Host "✅ RevitExtractor.dll found"
 
-          # Zip the FOLDER with wrapper — Revit DA requires *.bundle inside zip
-          Compress-Archive `
-            -Path $bundle `
-            -DestinationPath RevitExtractor.zip `
-            -Force
+          Compress-Archive -Path $bundle -DestinationPath RevitExtractor.zip -Force
 
-          # Print zip contents to verify structure
           Write-Host "=== Zip internal structure ==="
           Add-Type -Assembly System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\RevitExtractor.zip")
@@ -86,9 +76,7 @@ jobs:
 
           Write-Host "✅ RevitExtractor.zip created"
         shell: pwsh
-        
       
-          
       # ── 7. Upload the zip as a workflow artifact (useful for debugging) ────
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
