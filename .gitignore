@@ -6,3 +6,13 @@ obj/
 *.nupkg
 bundle/RevitExtractor.bundle/Contents/*.dll
 bundle/RevitExtractor.bundle/Contents/*.pdb
+
+# ── RevitPDFExport AppBundle ──────────────────────────────────────────────────
+bin/
+obj/
+*.user
+.vs/
+bundle/RevitPDFExport.bundle/Contents/*.dll
+bundle/RevitPDFExport.bundle/Contents/*.pdb
+*.zip
+*.nupkg
