@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ApplicationPackage SchemaVersion="1.0"
+                    AutodeskProduct="Revit"
+                    Name="RevitPDFExport"
+                    Description="Export Revit sheets and views to PDF via APS Design Automation"
+                    AppVersion="1.0.0"
+                    SupportedLocales="Enu"
+                    ProductType="Application"
+                    Author="Neeraj Yedekar">
+
+  <CompanyDetails Name="APS" Email="" Url="" />
+
+  <!--
+    CRITICAL RULES (from hard-won experience):
+    - ModuleName MUST point to the .addin FILE, not the DLL
+    - RuntimeRequirements MUST be inside <Components>, never at top level
+    - SeriesMin/SeriesMax MUST match the Revit engine version in the Activity
+    - R2024, R2025, R2026 are the valid series values
+  -->
+  <Components Description="RevitPDFExport core plugin">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="RevitPDFExport"
+                    ModuleName="./Contents/RevitPDFExport.addin"
+                    Version="1.0.0"
+                    LoadOnRevitStartup="True" />
+  </Components>
+
+</ApplicationPackage>
