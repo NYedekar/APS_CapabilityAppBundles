@@ -10,10 +10,8 @@
 
   <CompanyDetails Name="APS" Email="" Url="" />
 
-  <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
-
   <Components Description="RevitExtractor core plugin">
-    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
     <ComponentEntry AppName="RevitExtractor"
                     ModuleName="./Contents/RevitExtractor.addin"
                     Version="1.0.0"
