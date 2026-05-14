@@ -190,7 +190,7 @@ async function publishActivity(token, activityId) {
 
   let version;
 
-  if (res.status === 201) {
+if (res.status === 200 || res.status === 201) {
     console.log(`✔ Created Activity '${activityId}' (version ${res.body.version})`);
     version = res.body.version;
   } else if (res.status === 409) {
