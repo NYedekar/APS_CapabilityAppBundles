@@ -8,7 +8,7 @@ const CLIENT_SECRET = required('APS_CLIENT_SECRET');
 const BUNDLE_NAME   = process.env.BUNDLE_NAME    || 'RevitExtractor';
 const ENGINE_VER    = process.env.ENGINE_VERSION || '2024';
 const ALIAS         = process.env.ALIAS          || 'prod';
-const ZIP_PATH      = process.env.BUNDLE_ZIP     || path.join(process.cwd(), 'RevitExtractor.zip');
+const ZIP_PATH      = process.env.BUNDLE_ZIP     || path.join(process.cwd(), `${BUNDLE_NAME}.zip`);
 const ENGINE_ID     = `Autodesk.Revit+${ENGINE_VER}`;
 
 function required(name) {
