@@ -327,8 +327,7 @@ namespace RevitPDFExport
                 FileName        = baseFileName,
                 Combine         = p.Combine,
 
-                // Always fit content to the page — avoids clipping
-                ZoomType        = ZoomType.FitPage,
+         
 
                 // Full colour output; switch to GrayScale if file size is a concern
                 ColorDepth      = ColorDepthType.Color,
@@ -363,9 +362,9 @@ namespace RevitPDFExport
                 case "A2":     return ExportPaperFormat.ISO_A2;
                 case "A3":     return ExportPaperFormat.ISO_A3;
                 case "A4":     return ExportPaperFormat.ISO_A4;
-                case "LETTER": return ExportPaperFormat.ANSI_A_Letter;
+                case "LETTER": return ExportPaperFormat.ANSI_A;
                 case "TABLOID":
-                case "11X17":  return ExportPaperFormat.ANSI_B_Tabloid;
+                case "11X17":  return ExportPaperFormat.ANSI_B;
                 default:       return ExportPaperFormat.Default;
             }
         }
