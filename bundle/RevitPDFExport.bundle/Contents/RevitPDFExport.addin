@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CRITICAL RULES (from hard-won experience):
+  - Type MUST be "DBApplication" — never "Application" (UI apps don't work headlessly)
+  - Assembly uses .\ prefix — just the DLL name, resolved relative to this .addin file
+  - This file MUST live in Contents/ alongside the DLL (not at the bundle root)
+  - FullClassName must EXACTLY match the C# namespace + class name
+  - Generate a fresh GUID for AddInId — never reuse someone else's
+-->
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>RevitPDFExport</Name>
+    <Assembly>.\RevitPDFExport.dll</Assembly>
+    <AddInId>f7a3b9c2-4e8d-4f1a-9b2e-7d3c5e8a1f4b</AddInId>
+    <FullClassName>RevitPDFExport.RevitPDFExportApp</FullClassName>
+    <VendorId>APS</VendorId>
+    <VendorDescription>APS Design Automation — PDF Export</VendorDescription>
+  </AddIn>
+</RevitAddIns>
