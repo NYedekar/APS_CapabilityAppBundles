@@ -6,10 +6,10 @@ const https = require('https');
 const CLIENT_ID     = required('APS_CLIENT_ID');
 const CLIENT_SECRET = required('APS_CLIENT_SECRET');
 const BUNDLE_NAME   = required('BUNDLE_NAME');
-const ENGINE_VER    = required('ENGINE_VERSION');
 const ALIAS         = required('ALIAS');
 const ZIP_PATH      = process.env.BUNDLE_ZIP || path.join(process.cwd(), `${BUNDLE_NAME}.zip`);
-const ENGINE_ID     = `Autodesk.AutoCAD+${ENGINE_VER}`;
+// ENGINE_VERSION env var is optional — if omitted the script auto-detects the latest AutoCAD engine.
+const ENGINE_VERSION_HINT = process.env.ENGINE_VERSION || null;
 
 function required(name) {
   const val = process.env[name];
@@ -55,15 +55,57 @@ function daHeaders(token) {
   return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
-async function createNewVersion(token) {
-  console.log(`\n📦 Creating AppBundle version: ${BUNDLE_NAME}`);
+// Query the DA engines list and return the latest non-deprecated AutoCAD engine ID.
+async function resolveEngineId(token) {
+  if (ENGINE_VERSION_HINT) {
+    const id = `Autodesk.AutoCAD+${ENGINE_VERSION_HINT}`;
+    console.log(`\n🔍 Using ENGINE_VERSION hint: ${id}`);
+    return id;
+  }
+
+  console.log('\n🔍 Auto-detecting latest AutoCAD engine...');
+  let allEngines = [];
+  let nextPage = `/da/us-east/v3/engines?page[limit]=100`;
+
+  while (nextPage) {
+    const res = await request({
+      hostname: 'developer.api.autodesk.com',
+      path:     nextPage,
+      method:   'GET',
+      headers:  { 'Authorization': `Bearer ${token}` },
+    });
+    if (res.status !== 200) throw new Error(`Engine list failed HTTP ${res.status}: ${JSON.stringify(res.body)}`);
+    allEngines = allEngines.concat(res.body.data || []);
+    nextPage = res.body.paginationToken
+      ? `/da/us-east/v3/engines?page[limit]=100&page[cursor]=${res.body.paginationToken}`
+      : null;
+  }
+
+  const acEngines = allEngines
+    .filter(e => /^Autodesk\.AutoCAD\+\d+$/.test(e))
+    .sort((a, b) => {
+      const vA = parseInt(a.split('+')[1], 10);
+      const vB = parseInt(b.split('+')[1], 10);
+      return vB - vA; // descending — highest version first
+    });
+
+  console.log(`   Available AutoCAD engines: ${acEngines.join(', ')}`);
+  if (acEngines.length === 0) throw new Error('No AutoCAD engines found in DA API response.');
+
+  const latest = acEngines[0];
+  console.log(`   ✅ Selected engine: ${latest}`);
+  return latest;
+}
+
+async function createNewVersion(token, engineId) {
+  console.log(`\n📦 Creating AppBundle version: ${BUNDLE_NAME} (${engineId})`);
 
   let res = await request({
     hostname: 'developer.api.autodesk.com',
     path:     '/da/us-east/v3/appbundles',
     method:   'POST',
     headers:  daHeaders(token),
-  }, JSON.stringify({ id: BUNDLE_NAME, engine: ENGINE_ID, description: `${BUNDLE_NAME} plugin` }));
+  }, JSON.stringify({ id: BUNDLE_NAME, engine: engineId, description: `${BUNDLE_NAME} plugin` }));
 
   if (res.status === 409) {
     console.log('   Bundle exists — adding new version...');
@@ -72,7 +114,7 @@ async function createNewVersion(token) {
       path:     `/da/us-east/v3/appbundles/${BUNDLE_NAME}/versions`,
       method:   'POST',
       headers:  daHeaders(token),
-    }, JSON.stringify({ engine: ENGINE_ID, description: `${BUNDLE_NAME} plugin` }));
+    }, JSON.stringify({ engine: engineId, description: `${BUNDLE_NAME} plugin` }));
   }
 
   if (res.status < 200 || res.status >= 300)
@@ -156,7 +198,6 @@ async function setAlias(token, version) {
   console.log(` APS AppBundle Publisher — ${BUNDLE_NAME}`);
   console.log('═══════════════════════════════════════════════════');
   console.log(`Bundle : ${BUNDLE_NAME}`);
-  console.log(`Engine : ${ENGINE_ID}`);
   console.log(`Alias  : ${ALIAS}`);
   console.log(`Zip    : ${ZIP_PATH}`);
   console.log('');
@@ -166,13 +207,15 @@ async function setAlias(token, version) {
     process.exit(1);
   }
 
-  const token  = await getToken();
-  const bundle = await createNewVersion(token);
+  const token    = await getToken();
+  const engineId = await resolveEngineId(token);
+  const bundle   = await createNewVersion(token, engineId);
   await uploadZip(bundle.uploadParameters);
   await setAlias(token, bundle.version);
 
   console.log('\n═══════════════════════════════════════════════════');
   console.log(`✅ Done!  ${BUNDLE_NAME}+${ALIAS}  →  v${bundle.version}`);
+  console.log(`   Engine : ${engineId}`);
   console.log('═══════════════════════════════════════════════════');
 })().catch(err => {
   console.error('\n❌ Publish failed:', err.message);

@@ -12,10 +12,10 @@ on:
   workflow_dispatch:
 
 env:
-  ENGINE_VERSION: "24"
-  BUNDLE_NAME:    "AutoCADDrawingMetadataExtractor"
-  ACTIVITY_ID:    "ExtractAutoCADDrawingMetadata"
-  ALIAS:          "prod"
+  # ENGINE_VERSION intentionally omitted — publish scripts auto-detect the latest live AutoCAD engine.
+  BUNDLE_NAME: "AutoCADDrawingMetadataExtractor"
+  ACTIVITY_ID: "ExtractAutoCADDrawingMetadata"
+  ALIAS:       "prod"
 
 jobs:
   build-and-publish:

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 const https = require('https');
 
-const CLIENT_ID     = required('APS_CLIENT_ID');
-const CLIENT_SECRET = required('APS_CLIENT_SECRET');
-const NICKNAME      = required('APS_NICKNAME');
-const BUNDLE_NAME   = process.env.BUNDLE_NAME  || 'AutoCADDrawingMetadataExtractor';
-const ENGINE_VER    = process.env.ENGINE_VERSION || '25';
-const ALIAS         = process.env.ALIAS         || 'prod';
-const ACTIVITY_ID   = process.env.ACTIVITY_ID   || 'ExtractAutoCADDrawingMetadata';
-const ENGINE_ID     = `Autodesk.AutoCAD+${ENGINE_VER}`;
+const CLIENT_ID           = required('APS_CLIENT_ID');
+const CLIENT_SECRET       = required('APS_CLIENT_SECRET');
+const NICKNAME            = required('APS_NICKNAME');
+const BUNDLE_NAME         = process.env.BUNDLE_NAME     || 'AutoCADDrawingMetadataExtractor';
+const ALIAS               = process.env.ALIAS           || 'prod';
+const ACTIVITY_ID         = process.env.ACTIVITY_ID     || 'ExtractAutoCADDrawingMetadata';
+const ENGINE_VERSION_HINT = process.env.ENGINE_VERSION  || null;
+// ENGINE_ID is resolved at runtime via resolveEngineId() — do not hardcode.
 
 function required(name) {
   const v = process.env[name];
@@ -54,9 +54,41 @@ function daHeaders(token) {
   return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
-function buildActivityDef() {
+async function resolveEngineId(token) {
+  if (ENGINE_VERSION_HINT) {
+    const id = `Autodesk.AutoCAD+${ENGINE_VERSION_HINT}`;
+    console.log(`\n🔍 Using ENGINE_VERSION hint: ${id}`);
+    return id;
+  }
+
+  console.log('\n🔍 Auto-detecting latest AutoCAD engine...');
+  let allEngines = [];
+  let nextPage = `/da/us-east/v3/engines?page[limit]=100`;
+  while (nextPage) {
+    const res = await request({
+      hostname: 'developer.api.autodesk.com',
+      path:     nextPage,
+      method:   'GET',
+      headers:  { 'Authorization': `Bearer ${token}` },
+    });
+    if (res.status !== 200) throw new Error(`Engine list HTTP ${res.status}: ${JSON.stringify(res.body)}`);
+    allEngines = allEngines.concat(res.body.data || []);
+    nextPage = res.body.paginationToken
+      ? `/da/us-east/v3/engines?page[limit]=100&page[cursor]=${res.body.paginationToken}`
+      : null;
+  }
+  const acEngines = allEngines
+    .filter(e => /^Autodesk\.AutoCAD\+\d+$/.test(e))
+    .sort((a, b) => parseInt(b.split('+')[1], 10) - parseInt(a.split('+')[1], 10));
+  console.log(`   Available AutoCAD engines: ${acEngines.join(', ')}`);
+  if (acEngines.length === 0) throw new Error('No AutoCAD engines found.');
+  console.log(`   ✅ Selected engine: ${acEngines[0]}`);
+  return acEngines[0];
+}
+
+function buildActivityDef(engineId) {
   return {
-    engine:     ENGINE_ID,
+    engine:     engineId,
     appbundles: [`${NICKNAME}.${BUNDLE_NAME}+${ALIAS}`],
     // accoreconsole.exe loads the .dwg via /i, loads the bundle via /al, then
     // executes the script via /s. The script just contains the command name.
@@ -87,9 +119,9 @@ function buildActivityDef() {
   };
 }
 
-async function publishActivity(token) {
+async function publishActivity(token, engineId) {
   console.log(`\n🔧 Creating/updating Activity: ${ACTIVITY_ID}`);
-  const def = buildActivityDef();
+  const def = buildActivityDef(engineId);
 
   let res = await request({
     hostname: 'developer.api.autodesk.com',
@@ -150,8 +182,9 @@ async function setAlias(token, version) {
   console.log(`   Engine   : ${ENGINE_ID}`);
   console.log(`   Command  : EXTRACTDWGMETADATA`);
 
-  const token   = await getToken();
-  const version = await publishActivity(token);
+  const token    = await getToken();
+  const engineId = await resolveEngineId(token);
+  const version  = await publishActivity(token, engineId);
   await setAlias(token, version);
 
   console.log('\n══════════════════════════════════════════════════════');
