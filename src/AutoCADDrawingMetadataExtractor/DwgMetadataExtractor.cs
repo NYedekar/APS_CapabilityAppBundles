@@ -13,6 +13,8 @@ namespace AutoCADDrawingMetadataExtractor
 
         internal DwgMetadataExtractor(Database db) => _db = db;
 
+        // ── Full flat report (used by EXTRACTDWGMETADATA) ─────────────────────
+
         internal DrawingMetadataReport BuildReport()
         {
             var report = new DrawingMetadataReport
@@ -46,6 +48,89 @@ namespace AutoCADDrawingMetadataExtractor
 
             return report;
             // Transaction disposed here without Commit — correct for read-only use.
+        }
+
+        // ── Combined operationId-keyed report (used by EXTRACTALLDRAWINGMETADATA) ──
+        // Single DWG open/close pass; output keys mirror the 7 individual operationIds.
+
+        internal CombinedMetadataResult BuildCombinedReport()
+        {
+            var result = new CombinedMetadataResult
+            {
+                ExtractedAt = DateTime.UtcNow.ToString("o"),
+            };
+
+            Console.WriteLine("[MetadataExtractor] Building combined report (single pass)...");
+
+            // ProjectCustomProperties + DrawingHistory both come from SummaryInfo
+            var summaryInfo = GetSummaryInfo();
+            result.ProjectCustomProperties = summaryInfo;
+            result.DrawingHistory = new DrawingHistoryData
+            {
+                LastSavedBy    = summaryInfo.LastSavedBy,
+                RevisionNumber = summaryInfo.RevisionNumber,
+            };
+            try
+            {
+                result.DrawingHistory.TotalEditingTime = _db.TotalEditingTime.ToString(@"hh\:mm\:ss");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MetadataExtractor] TotalEditingTime unavailable: {ex.Message}");
+            }
+
+            var settings = GetDrawingSettings();
+
+            using var tr = _db.TransactionManager.StartTransaction();
+
+            // LayerTable
+            result.LayerTable = GetLayerTable(tr);
+
+            // LayoutData
+            result.LayoutData = GetLayouts(tr);
+
+            // BlockDefinitions → XrefList + counts for DrawingStatistics
+            var blockDefs = GetBlockDefinitions(tr);
+            result.XrefList = blockDefs
+                .Where(b => b.IsXref)
+                .Select(b => new XrefData { Name = b.Name, Path = b.XrefPath, XrefStatus = b.XrefStatus })
+                .ToList();
+
+            // EntityCounts for DrawingStatistics
+            var entityCounts = GetEntityCounts(tr);
+            result.DrawingStatistics = new DrawingStatisticsResult
+            {
+                TotalModelSpaceEntities = entityCounts.TotalModelSpaceEntities,
+                ByEntityType            = entityCounts.ByEntityType,
+                ByLayer                 = entityCounts.ByLayer,
+                LayerCount              = result.LayerTable.Count,
+                BlockDefinitionCount    = blockDefs.Count(b => !b.IsLayout && !b.IsAnonymous && !b.IsXref),
+                XrefCount               = result.XrefList.Count,
+                InsertionUnits          = settings.InsertionUnits,
+                LinearUnits             = settings.LinearUnits,
+                ExtentsMin              = settings.ExtentsMin,
+                ExtentsMax              = settings.ExtentsMax,
+                LimitsMin               = settings.LimitsMin,
+                LimitsMax               = settings.LimitsMax,
+            };
+
+            // SymbolTableInventory
+            var tempReport = new DrawingMetadataReport();
+            GetSymbolTables(tr, tempReport);
+            result.SymbolTableInventory = new SymbolTableInventoryResult
+            {
+                Linetypes   = tempReport.Linetypes,
+                TextStyles  = tempReport.TextStyles,
+                DimStyles   = tempReport.DimStyles,
+                NamedViews  = tempReport.NamedViews,
+                UcsTable    = tempReport.UcsTable,
+            };
+
+            Console.WriteLine($"[MetadataExtractor] Combined report built: " +
+                $"{result.LayerTable.Count} layers, {result.LayoutData.Count} layouts, " +
+                $"{result.XrefList.Count} xrefs, {entityCounts.TotalModelSpaceEntities} entities.");
+
+            return result;
         }
 
         // ── Summary Info ──────────────────────────────────────────────────────
