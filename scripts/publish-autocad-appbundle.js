@@ -81,12 +81,13 @@ async function resolveEngineId(token) {
       : null;
   }
 
+  // Engine ID format: Autodesk.AutoCAD+<major>_<minor>  e.g. Autodesk.AutoCAD+25_1
   const acEngines = allEngines
-    .filter(e => /^Autodesk\.AutoCAD\+\d+$/.test(e))
+    .filter(e => /^Autodesk\.AutoCAD\+\d+_\d+$/.test(e))
     .sort((a, b) => {
-      const vA = parseInt(a.split('+')[1], 10);
-      const vB = parseInt(b.split('+')[1], 10);
-      return vB - vA; // descending — highest version first
+      const [majA, minA] = a.split('+')[1].split('_').map(Number);
+      const [majB, minB] = b.split('+')[1].split('_').map(Number);
+      return majB !== majA ? majB - majA : minB - minA; // descending
     });
 
   console.log(`   Available AutoCAD engines: ${acEngines.join(', ')}`);

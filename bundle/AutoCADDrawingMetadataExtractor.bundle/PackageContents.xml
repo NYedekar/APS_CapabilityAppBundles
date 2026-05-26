@@ -11,7 +11,7 @@
   <CompanyDetails Name="APS" Email="" Url="" />
 
   <Components Description="AutoCADDrawingMetadataExtractor core plugin">
-    <RuntimeRequirements OS="Win64" Platform="AutoCAD" SeriesMin="R2022" SeriesMax="R2024" />
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD" SeriesMin="R2025" SeriesMax="R2027" />
     <ComponentEntry AppName="AutoCADDrawingMetadataExtractor"
                     ModuleName="./Contents/AutoCADDrawingMetadataExtractor.dll"
                     AppDescription="DWG metadata extraction plugin"

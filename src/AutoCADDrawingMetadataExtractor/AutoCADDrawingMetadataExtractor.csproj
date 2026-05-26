@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- AutoCAD 2024+ (engine +24, +25) runs on .NET 8; net48 is for 2022/2023 only. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- AutoCAD 2027 (engine +26_0) runs on .NET 10. -->
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
     <Nullable>enable</Nullable>
@@ -14,7 +14,7 @@
   <ItemGroup>
     <!-- AutoCAD.NET.Core: headless/console stub for DA — accoremgd + acdbmgd reference only.
          AutoCAD.NET 25.0.0 has a broken dep on AutoCAD.NET.Core 25.0.0-V058 (not on NuGet). -->
-    <PackageReference Include="AutoCAD.NET.Core" Version="24.3.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="26.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <!-- Newtonsoft.Json MUST be in output — DA engine does not provide it. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>

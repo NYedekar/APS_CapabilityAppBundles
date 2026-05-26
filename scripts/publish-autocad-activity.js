@@ -77,9 +77,14 @@ async function resolveEngineId(token) {
       ? `/da/us-east/v3/engines?page[limit]=100&page[cursor]=${res.body.paginationToken}`
       : null;
   }
+  // Engine ID format: Autodesk.AutoCAD+<major>_<minor>  e.g. Autodesk.AutoCAD+25_1
   const acEngines = allEngines
-    .filter(e => /^Autodesk\.AutoCAD\+\d+$/.test(e))
-    .sort((a, b) => parseInt(b.split('+')[1], 10) - parseInt(a.split('+')[1], 10));
+    .filter(e => /^Autodesk\.AutoCAD\+\d+_\d+$/.test(e))
+    .sort((a, b) => {
+      const [majA, minA] = a.split('+')[1].split('_').map(Number);
+      const [majB, minB] = b.split('+')[1].split('_').map(Number);
+      return majB !== majA ? majB - majA : minB - minA;
+    });
   console.log(`   Available AutoCAD engines: ${acEngines.join(', ')}`);
   if (acEngines.length === 0) throw new Error('No AutoCAD engines found.');
   console.log(`   ✅ Selected engine: ${acEngines[0]}`);
