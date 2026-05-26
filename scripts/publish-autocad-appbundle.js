@@ -194,6 +194,27 @@ async function setAlias(token, version) {
   console.log(`   ✅ Alias '${ALIAS}' → v${version}`);
 }
 
+// Read back the alias immediately after setting it to catch race conditions
+// where a concurrent CI run overwrites the alias with an older version.
+async function verifyAlias(token, expectedVersion) {
+  console.log(`\n🔎 Verifying alias '${ALIAS}' → v${expectedVersion}...`);
+  const res = await request({
+    hostname: 'developer.api.autodesk.com',
+    path:     `/da/us-east/v3/appbundles/${BUNDLE_NAME}/aliases/${ALIAS}`,
+    method:   'GET',
+    headers:  { 'Authorization': `Bearer ${token}` },
+  });
+  if (res.status !== 200)
+    throw new Error(`Alias verify GET failed HTTP ${res.status}: ${JSON.stringify(res.body)}`);
+  const actual = res.body.version;
+  if (actual !== expectedVersion)
+    throw new Error(
+      `Alias mismatch after set: expected v${expectedVersion} but server has v${actual}.\n` +
+      `A concurrent CI run may have overwritten the alias. Re-run this workflow to recover.`
+    );
+  console.log(`   ✅ Alias verified: ${BUNDLE_NAME}+${ALIAS} → v${actual}`);
+}
+
 (async () => {
   console.log('═══════════════════════════════════════════════════');
   console.log(` APS AppBundle Publisher — ${BUNDLE_NAME}`);
@@ -213,6 +234,7 @@ async function setAlias(token, version) {
   const bundle   = await createNewVersion(token, engineId);
   await uploadZip(bundle.uploadParameters);
   await setAlias(token, bundle.version);
+  await verifyAlias(token, bundle.version);
 
   console.log('\n═══════════════════════════════════════════════════');
   console.log(`✅ Done!  ${BUNDLE_NAME}+${ALIAS}  →  v${bundle.version}`);
