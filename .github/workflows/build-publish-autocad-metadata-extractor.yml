@@ -37,8 +37,6 @@ jobs:
         run: |
           dotnet publish src/AutoCADDrawingMetadataExtractor/AutoCADDrawingMetadataExtractor.csproj `
             --configuration Release `
-            --runtime win-x64 `
-            --self-contained false `
             --output "${{ github.workspace }}\bundle\AutoCADDrawingMetadataExtractor.bundle\Contents\"
         shell: pwsh
 
