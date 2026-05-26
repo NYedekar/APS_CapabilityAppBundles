@@ -18,6 +18,62 @@ namespace AutoCADDrawingMetadataExtractor
         public List<string> UcsTable { get; set; } = new();
     }
 
+    // ── Combined result shape for ExtractAllDrawingMetadata ──────────────────
+    // Keys mirror the 7 individual operationIds so callers can use either path.
+
+    public class CombinedMetadataResult
+    {
+        public string ExtractedAt { get; set; } = "";
+        public DrawingStatisticsResult DrawingStatistics { get; set; } = new();
+        public SymbolTableInventoryResult SymbolTableInventory { get; set; } = new();
+        public List<LayoutData> LayoutData { get; set; } = new();
+        public SummaryInfoData? ProjectCustomProperties { get; set; }
+        public DrawingHistoryData? DrawingHistory { get; set; }
+        public List<LayerData> LayerTable { get; set; } = new();
+        public List<XrefData> XrefList { get; set; } = new();
+    }
+
+    public class DrawingStatisticsResult
+    {
+        public int TotalModelSpaceEntities { get; set; }
+        public Dictionary<string, int> ByEntityType { get; set; } = new();
+        public Dictionary<string, int> ByLayer { get; set; } = new();
+        public int LayerCount { get; set; }
+        public int BlockDefinitionCount { get; set; }
+        public int XrefCount { get; set; }
+        public string? InsertionUnits { get; set; }
+        public string? LinearUnits { get; set; }
+        public Point2dData? ExtentsMin { get; set; }
+        public Point2dData? ExtentsMax { get; set; }
+        public Point2dData? LimitsMin { get; set; }
+        public Point2dData? LimitsMax { get; set; }
+    }
+
+    public class SymbolTableInventoryResult
+    {
+        public List<LinetypeData> Linetypes { get; set; } = new();
+        public List<TextStyleData> TextStyles { get; set; } = new();
+        public List<string> DimStyles { get; set; } = new();
+        public List<string> NamedViews { get; set; } = new();
+        public List<string> UcsTable { get; set; } = new();
+    }
+
+    public class DrawingHistoryData
+    {
+        public string? LastSavedBy { get; set; }
+        public string? RevisionNumber { get; set; }
+        public string? TotalEditingTime { get; set; }
+    }
+
+    public class XrefData
+    {
+        public string Name { get; set; } = "";
+        public string? Path { get; set; }
+        public string? XrefStatus { get; set; }
+    }
+
+    // ── Shared primitive models ───────────────────────────────────────────────
+
     public class SummaryInfoData
     {
         public string? Title { get; set; }
