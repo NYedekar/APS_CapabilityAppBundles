@@ -65,12 +65,12 @@ namespace AutoCADDrawingMetadataExtractor
                 RevisionNumber = info.RevisionNumber,
             };
 
-            // CustomSummaryInfo returns IDictionaryEnumerator, not a custom iterator type.
+            // Custom properties live on DatabaseSummaryInfoBuilder, not on the DatabaseSummaryInfo struct.
             try
             {
-                IDictionaryEnumerator iter = info.CustomSummaryInfo;
-                while (iter.MoveNext())
-                    data.CustomProperties[(string)iter.Key] = (string)(iter.Value ?? "");
+                var builder = new DatabaseSummaryInfoBuilder(info);
+                foreach (DictionaryEntry entry in builder.CustomSummaryInfo)
+                    data.CustomProperties[(string)entry.Key] = (string)(entry.Value ?? "");
             }
             catch { }
 
