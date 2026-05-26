@@ -10,7 +10,9 @@ on:
       - 'scripts/publish-autocad-activity.js'
       - '.github/workflows/build-publish-autocad-metadata-extractor.yml'
   workflow_dispatch:
-
+concurrency:
+  group: publish-autocad-metadata-extractor
+  cancel-in-progress: false
 env:
   ENGINE_VERSION: "26_0"   # Autodesk.AutoCAD+26_0 (AutoCAD 2027, .NET 10, deprecated 2030-03-29)
   BUNDLE_NAME: "AutoCADDrawingMetadataExtractor"
