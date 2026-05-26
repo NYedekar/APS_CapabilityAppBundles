@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  ENGINE_VERSION: "25"
+  ENGINE_VERSION: "24"
   BUNDLE_NAME:    "AutoCADDrawingMetadataExtractor"
   ACTIVITY_ID:    "ExtractAutoCADDrawingMetadata"
   ALIAS:          "prod"

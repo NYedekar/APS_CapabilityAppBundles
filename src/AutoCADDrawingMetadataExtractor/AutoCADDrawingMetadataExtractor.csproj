@@ -14,7 +14,7 @@
   <ItemGroup>
     <!-- AutoCAD.NET.Core: headless/console stub for DA — accoremgd + acdbmgd reference only.
          AutoCAD.NET 25.0.0 has a broken dep on AutoCAD.NET.Core 25.0.0-V058 (not on NuGet). -->
-    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="24.3.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <!-- Newtonsoft.Json MUST be in output — DA engine does not provide it. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
