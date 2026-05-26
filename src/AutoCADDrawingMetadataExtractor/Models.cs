@@ -62,7 +62,6 @@ namespace AutoCADDrawingMetadataExtractor
     {
         public string? LastSavedBy { get; set; }
         public string? RevisionNumber { get; set; }
-        public string? TotalEditingTime { get; set; }
     }
 
     public class XrefData
