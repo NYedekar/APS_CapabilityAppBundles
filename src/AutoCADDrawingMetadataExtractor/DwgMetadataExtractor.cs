@@ -1,8 +1,8 @@
-using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -27,7 +27,8 @@ namespace AutoCADDrawingMetadataExtractor
             Console.WriteLine("[MetadataExtractor] Extracting drawing settings...");
             report.DrawingSettings = GetDrawingSettings();
 
-            using var tr = _db.TransactionManager.StartReadOnlyTransaction();
+            // StartTransaction() is the correct .NET API — StartReadOnlyTransaction() does not exist.
+            using var tr = _db.TransactionManager.StartTransaction();
 
             Console.WriteLine("[MetadataExtractor] Extracting layer table...");
             report.LayerTable = GetLayerTable(tr);
@@ -44,8 +45,8 @@ namespace AutoCADDrawingMetadataExtractor
             Console.WriteLine("[MetadataExtractor] Extracting symbol tables...");
             GetSymbolTables(tr, report);
 
-            tr.Commit();
             return report;
+            // Transaction disposed here without Commit — correct for read-only use.
         }
 
         // ── Summary Info ──────────────────────────────────────────────────────
@@ -64,14 +65,14 @@ namespace AutoCADDrawingMetadataExtractor
                 RevisionNumber = info.RevisionNumber,
             };
 
-            // Custom properties
-            var iter = info.CustomSummaryInfo;
-            iter.MoveFirst();
-            while (!iter.AtEnd())
+            // CustomSummaryInfo returns IDictionaryEnumerator, not a custom iterator type.
+            try
             {
-                data.CustomProperties[iter.Key] = iter.Value;
-                iter.MoveNext();
+                IDictionaryEnumerator iter = info.CustomSummaryInfo;
+                while (iter.MoveNext())
+                    data.CustomProperties[(string)iter.Key] = (string)(iter.Value ?? "");
             }
+            catch { }
 
             return data;
         }
@@ -88,8 +89,8 @@ namespace AutoCADDrawingMetadataExtractor
                 Measurement    = _db.Measurement.ToString(),
                 ExtentsMin     = Pt2(_db.Extmin),
                 ExtentsMax     = Pt2(_db.Extmax),
-                LimitsMin      = Pt2(_db.Limmin),
-                LimitsMax      = Pt2(_db.Limmax),
+                LimitsMin      = Pt2(_db.Limmin),   // Point2d
+                LimitsMax      = Pt2(_db.Limmax),   // Point2d
                 InsertionBase  = Pt3(_db.Insbase),
             };
         }
@@ -119,7 +120,6 @@ namespace AutoCADDrawingMetadataExtractor
                         Description = layer.Description,
                     };
 
-                    // TrueColor if not by-index
                     if (layer.Color.ColorMethod == ColorMethod.ByColor)
                         data.TrueColor = $"#{layer.Color.Red:X2}{layer.Color.Green:X2}{layer.Color.Blue:X2}";
 
@@ -147,12 +147,22 @@ namespace AutoCADDrawingMetadataExtractor
                 {
                     var layout = (Layout)tr.GetObject(entry.Value, OpenMode.ForRead);
 
-                    // Count viewports (skip the paper-space pseudo-viewport at id 1)
+                    // GetViewports() does not exist in .NET API.
+                    // Count viewports by iterating the layout's own BTR.
                     int vpCount = 0;
-                    foreach (ObjectId vpId in layout.GetViewports())
+                    if (!layout.BlockTableRecordId.IsNull)
                     {
-                        var vp = tr.GetObject(vpId, OpenMode.ForRead) as Viewport;
-                        if (vp != null && vp.Number != 1) vpCount++;
+                        var layoutBtr = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForRead);
+                        foreach (ObjectId entId in layoutBtr)
+                        {
+                            try
+                            {
+                                // Viewport.Number == 1 is the paper-space pseudo-viewport; skip it.
+                                if (tr.GetObject(entId, OpenMode.ForRead) is Viewport vp && vp.Number != 1)
+                                    vpCount++;
+                            }
+                            catch { }
+                        }
                     }
 
                     result.Add(new LayoutData
@@ -195,26 +205,21 @@ namespace AutoCADDrawingMetadataExtractor
                         IsLayout    = btr.IsLayout,
                         IsAnonymous = btr.IsAnonymous,
                         XrefPath    = btr.IsFromExternalReference ? btr.PathName : null,
+                        XrefStatus  = btr.IsFromExternalReference ? btr.XrefStatus.ToString() : null,
                     };
 
-                    // Entity count and attribute tags
                     int count = 0;
                     foreach (ObjectId entId in btr)
                     {
                         count++;
                         try
                         {
-                            var ent = tr.GetObject(entId, OpenMode.ForRead);
-                            if (ent is AttributeDefinition attDef && !attDef.Constant)
+                            if (tr.GetObject(entId, OpenMode.ForRead) is AttributeDefinition attDef && !attDef.Constant)
                                 data.AttributeTags.Add(attDef.Tag);
                         }
                         catch { }
                     }
                     data.EntityCount = count;
-
-                    // Xref status
-                    if (btr.IsFromExternalReference)
-                        data.XrefStatus = btr.XrefStatus.ToString();
 
                     result.Add(data);
                 }
@@ -242,7 +247,7 @@ namespace AutoCADDrawingMetadataExtractor
                     var ent = (Entity)tr.GetObject(entId, OpenMode.ForRead);
                     data.TotalModelSpaceEntities++;
 
-                    string typeName = ent.GetRXClass().Name;
+                    string typeName = ent.GetType().Name;
                     data.ByEntityType[typeName] = data.ByEntityType.GetValueOrDefault(typeName) + 1;
 
                     string layerName = ent.Layer ?? "0";
@@ -261,23 +266,17 @@ namespace AutoCADDrawingMetadataExtractor
 
         private void GetSymbolTables(Transaction tr, DrawingMetadataReport report)
         {
-            // Linetypes
             var ltTable = (LinetypeTable)tr.GetObject(_db.LinetypeTableId, OpenMode.ForRead);
             foreach (ObjectId id in ltTable)
             {
                 try
                 {
                     var lt = (LinetypeTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    report.Linetypes.Add(new LinetypeData
-                    {
-                        Name        = lt.Name,
-                        Description = lt.AsciiDescription,
-                    });
+                    report.Linetypes.Add(new LinetypeData { Name = lt.Name, Description = lt.AsciiDescription });
                 }
                 catch { }
             }
 
-            // Text styles
             var tsTable = (TextStyleTable)tr.GetObject(_db.TextStyleTableId, OpenMode.ForRead);
             foreach (ObjectId id in tsTable)
             {
@@ -296,39 +295,24 @@ namespace AutoCADDrawingMetadataExtractor
                 catch { }
             }
 
-            // Dim styles
             var dsTable = (DimStyleTable)tr.GetObject(_db.DimStyleTableId, OpenMode.ForRead);
             foreach (ObjectId id in dsTable)
             {
-                try
-                {
-                    var ds = (DimStyleTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    report.DimStyles.Add(ds.Name);
-                }
+                try { report.DimStyles.Add(((DimStyleTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name); }
                 catch { }
             }
 
-            // Named views
             var viewTable = (ViewTable)tr.GetObject(_db.ViewTableId, OpenMode.ForRead);
             foreach (ObjectId id in viewTable)
             {
-                try
-                {
-                    var vtr = (ViewTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    report.NamedViews.Add(vtr.Name);
-                }
+                try { report.NamedViews.Add(((ViewTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name); }
                 catch { }
             }
 
-            // UCS table
             var ucsTable = (UcsTable)tr.GetObject(_db.UcsTableId, OpenMode.ForRead);
             foreach (ObjectId id in ucsTable)
             {
-                try
-                {
-                    var ucs = (UcsTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    report.UcsTable.Add(ucs.Name);
-                }
+                try { report.UcsTable.Add(((UcsTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name); }
                 catch { }
             }
         }
@@ -340,34 +324,26 @@ namespace AutoCADDrawingMetadataExtractor
             try
             {
                 if (ltId.IsNull) return "";
-                var lt = (LinetypeTableRecord)tr.GetObject(ltId, OpenMode.ForRead);
-                return lt.Name;
+                return ((LinetypeTableRecord)tr.GetObject(ltId, OpenMode.ForRead)).Name;
             }
             catch { return ""; }
         }
 
+        // Limmin/Limmax are Point2d; Extmin/Extmax/Insbase are Point3d.
         private static Point2dData Pt2(Point2d p) => new() { X = Math.Round(p.X, 6), Y = Math.Round(p.Y, 6) };
         private static Point2dData Pt2(Point3d p) => new() { X = Math.Round(p.X, 6), Y = Math.Round(p.Y, 6) };
         private static Point3dData Pt3(Point3d p) => new() { X = Math.Round(p.X, 6), Y = Math.Round(p.Y, 6), Z = Math.Round(p.Z, 6) };
 
         private static string LinearUnitsName(int code) => code switch
         {
-            1 => "Scientific",
-            2 => "Decimal",
-            3 => "Engineering",
-            4 => "Architectural",
-            5 => "Fractional",
-            _ => code.ToString(),
+            1 => "Scientific", 2 => "Decimal", 3 => "Engineering",
+            4 => "Architectural", 5 => "Fractional", _ => code.ToString(),
         };
 
         private static string AngularUnitsName(int code) => code switch
         {
-            0 => "Degrees",
-            1 => "DegreesMinutes",
-            2 => "DegreesMinutesSeconds",
-            3 => "Gradians",
-            4 => "Radians",
-            _ => code.ToString(),
+            0 => "Degrees", 1 => "DegreesMinutes", 2 => "DegreesMinutesSeconds",
+            3 => "Gradians", 4 => "Radians", _ => code.ToString(),
         };
     }
 }

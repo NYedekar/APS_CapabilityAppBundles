@@ -2,7 +2,6 @@ using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Runtime;
 using Newtonsoft.Json;
-using System;
 using System.IO;
 using System.Text;
 
@@ -22,7 +21,7 @@ namespace AutoCADDrawingMetadataExtractor
         [CommandMethod("EXTRACTDWGMETADATA", CommandFlags.Modal)]
         public static void ExtractDwgMetadata()
         {
-            Database db;
+            Database? db;
             try
             {
                 var doc = Application.DocumentManager.MdiActiveDocument;
@@ -35,31 +34,32 @@ namespace AutoCADDrawingMetadataExtractor
 
             if (db == null)
             {
-                Console.WriteLine("[MetadataExtractor] ERROR: No active database.");
+                System.Console.WriteLine("[MetadataExtractor] ERROR: No active database.");
                 return;
             }
 
-            Console.WriteLine("[MetadataExtractor] Starting extraction...");
+            System.Console.WriteLine("[MetadataExtractor] Starting extraction...");
 
             try
             {
                 var extractor = new DwgMetadataExtractor(db);
                 var report = extractor.BuildReport();
 
-                var settings = new JsonSerializerSettings
+                var jsonSettings = new JsonSerializerSettings
                 {
                     Formatting = Formatting.Indented,
                     NullValueHandling = NullValueHandling.Ignore,
                 };
 
-                string json = JsonConvert.SerializeObject(report, settings);
+                string json = JsonConvert.SerializeObject(report, jsonSettings);
                 File.WriteAllText("result.json", json, Encoding.UTF8);
 
-                Console.WriteLine($"[MetadataExtractor] Done — result.json written ({json.Length} bytes).");
+                System.Console.WriteLine($"[MetadataExtractor] Done — result.json written ({json.Length} bytes).");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                Console.WriteLine($"[MetadataExtractor] ERROR: {ex.Message}\n{ex.StackTrace}");
+                // Qualify System.Exception explicitly — Autodesk.AutoCAD.Runtime also defines Exception.
+                System.Console.WriteLine($"[MetadataExtractor] ERROR: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }
