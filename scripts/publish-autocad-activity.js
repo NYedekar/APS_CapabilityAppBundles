@@ -184,7 +184,7 @@ async function setAlias(token, version) {
   console.log(`   Nickname : ${NICKNAME}`);
   console.log(`   Bundle   : ${NICKNAME}.${BUNDLE_NAME}+${ALIAS}`);
   console.log(`   Activity : ${ACTIVITY_ID}`);
-  console.log(`   Engine   : ${ENGINE_ID}`);
+  console.log(`   Engine   : ${ENGINE_VERSION_HINT ? 'Autodesk.AutoCAD+' + ENGINE_VERSION_HINT : '(auto-detect)'}`);
   console.log(`   Command  : EXTRACTDWGMETADATA`);
 
   const token    = await getToken();

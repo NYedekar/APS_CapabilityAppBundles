@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  # ENGINE_VERSION intentionally omitted — publish scripts auto-detect the latest live AutoCAD engine.
+  ENGINE_VERSION: "26_0"   # Autodesk.AutoCAD+26_0 (AutoCAD 2027, .NET 10, deprecated 2030-03-29)
   BUNDLE_NAME: "AutoCADDrawingMetadataExtractor"
   ACTIVITY_ID: "ExtractAutoCADDrawingMetadata"
   ALIAS:       "prod"
