@@ -19,6 +19,7 @@
                     LoadOnAutoCADStartup="False">
       <Commands GroupName="MetadataExtractorCommands">
         <Command Global="EXTRACTDWGMETADATA" Local="EXTRACTDWGMETADATA" />
+        <Command Global="EXTRACTALLDRAWINGMETADATA" Local="EXTRACTALLDRAWINGMETADATA" />
       </Commands>
       <AssemblyMappings>
         <AssemblyMapping Name="AutoCADDrawingMetadataExtractor.Newtonsoft.Json"
