@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- AutoCAD 2027 (engine +26_0) requires net10.0 — AutoCAD.NET.Core 26.0.0 only supports net10.0. -->
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- DA engine +26_0 headless runtime is .NET 8; AutoCAD.NET.Core 25.0.0 targets net8.0.
+         net10.0 assemblies CANNOT load on a .NET 8 host — silent "Unknown command" failure. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
     <Nullable>enable</Nullable>
@@ -12,9 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- AutoCAD.NET.Core: headless/console stub for DA — accoremgd + acdbmgd reference only.
-         AutoCAD.NET 25.0.0 has a broken dep on AutoCAD.NET.Core 25.0.0-V058 (not on NuGet). -->
-    <PackageReference Include="AutoCAD.NET.Core" Version="26.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- AutoCAD.NET.Core 25.0.0 targets net8.0 — compile-time stub only; DA worker provides the real DLLs. -->
+    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <!-- System.Text.Json is built into .NET 10 — no external DLL, no ALC resolution issues. -->
   </ItemGroup>
 

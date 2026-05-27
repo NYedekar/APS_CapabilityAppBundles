@@ -16,7 +16,7 @@
                     ModuleName="./Contents/AutoCADDrawingMetadataExtractor.dll"
                     AppDescription="DWG metadata extraction plugin"
                     LoadOnCommandInvocation="True"
-                    LoadOnAutoCADStartup="False">
+                    LoadOnAutoCADStartup="True">
       <Commands GroupName="MetadataExtractorCommands">
         <Command Global="EXTRACTDWGMETADATA" Local="EXTRACTDWGMETADATA" />
         <Command Global="EXTRACTALLDRAWINGMETADATA" Local="EXTRACTALLDRAWINGMETADATA" />

@@ -13,7 +13,7 @@ namespace AutoCADDrawingMetadataExtractor
 {
     public class MetadataExtractorApp : IExtensionApplication
     {
-        public void Initialize() { }
+        public void Initialize() { System.Console.WriteLine("[MetadataExtractor] Initialize called."); }
         public void Terminate() { }
     }
 
