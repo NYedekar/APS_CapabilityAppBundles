@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- DA engine +25_0 (AutoCAD 2025) runs .NET 8. Use net8.0 (not net8.0-windows) to match
-         the original working config (v1-v4). AutoCAD.NET full package (not .Core) is required
-         so that acad.exe-hosted assembly type identity matches what the DA worker provides. -->
+    <!-- DA engine +25_0 (AutoCAD 2025) headless runtime is .NET 8.
+         Use net8.0 (not net8.0-windows) — net8.0-windows adds Windows-API surface the
+         DA headless host may not satisfy, which causes silent DLL load failure. -->
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
@@ -14,9 +14,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- AutoCAD.NET 25.0.0.0 (full package) — compile-time stub only; DA worker provides the real DLLs.
-         Must match the original working config; .Core package causes silent load failure on DA. -->
-    <PackageReference Include="AutoCAD.NET" Version="25.0.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- AutoCAD.NET.Core 25.0.0 — compile-time stub only; DA worker provides the real DLLs. -->
+    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <!-- System.Text.Json is built into .NET 8 — no external DLL needed. -->
   </ItemGroup>
 
