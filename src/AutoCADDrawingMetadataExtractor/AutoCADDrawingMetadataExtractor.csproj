@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- DA engine +25_0 (AutoCAD 2025) headless runtime is .NET 8.
-         +26_0 engine silently fails to load any plugin DLL regardless of TFM — use +25_0. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- DA engine +25_0 (AutoCAD 2025) runs .NET 8. Use net8.0 (not net8.0-windows) to match
+         the original working config (v1-v4). AutoCAD.NET full package (not .Core) is required
+         so that acad.exe-hosted assembly type identity matches what the DA worker provides. -->
+    <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
     <Nullable>enable</Nullable>
@@ -13,9 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- AutoCAD.NET.Core 25.0.0 targets net8.0 — compile-time stub only; DA worker provides the real DLLs. -->
-    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
-    <!-- System.Text.Json is built into .NET 10 — no external DLL, no ALC resolution issues. -->
+    <!-- AutoCAD.NET 25.0.0.0 (full package) — compile-time stub only; DA worker provides the real DLLs.
+         Must match the original working config; .Core package causes silent load failure on DA. -->
+    <PackageReference Include="AutoCAD.NET" Version="25.0.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- System.Text.Json is built into .NET 8 — no external DLL needed. -->
   </ItemGroup>
 
 </Project>
