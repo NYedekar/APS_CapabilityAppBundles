@@ -1,9 +1,10 @@
 using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Runtime;
-using Newtonsoft.Json;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 [assembly: CommandClass(typeof(AutoCADDrawingMetadataExtractor.MetadataExtractorCommands))]
 [assembly: ExtensionApplication(typeof(AutoCADDrawingMetadataExtractor.MetadataExtractorApp))]
@@ -18,10 +19,10 @@ namespace AutoCADDrawingMetadataExtractor
 
     public class MetadataExtractorCommands
     {
-        private static readonly JsonSerializerSettings JsonSettings = new()
+        private static readonly JsonSerializerOptions JsonOptions = new()
         {
-            Formatting = Formatting.Indented,
-            NullValueHandling = NullValueHandling.Ignore,
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
 
         private static Database? ResolveDatabase()
@@ -53,7 +54,7 @@ namespace AutoCADDrawingMetadataExtractor
             {
                 var extractor = new DwgMetadataExtractor(db);
                 var report = extractor.BuildReport();
-                string json = JsonConvert.SerializeObject(report, JsonSettings);
+                string json = JsonSerializer.Serialize(report, JsonOptions);
                 File.WriteAllText("result.json", json, Encoding.UTF8);
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
@@ -82,7 +83,7 @@ namespace AutoCADDrawingMetadataExtractor
             {
                 var extractor = new DwgMetadataExtractor(db);
                 var result = extractor.BuildCombinedReport();
-                string json = JsonConvert.SerializeObject(result, JsonSettings);
+                string json = JsonSerializer.Serialize(result, JsonOptions);
                 File.WriteAllText("result.json", json, Encoding.UTF8);
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
