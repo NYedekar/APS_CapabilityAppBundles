@@ -19,7 +19,12 @@ namespace AutoCADDrawingMetadataExtractor
 
     public class MetadataExtractorCommands
     {
-        private static readonly JsonSerializerOptions JsonOptions = new()
+        // JsonSerializerOptions is created locally in each command method — NOT as a static field.
+        // A static initializer referencing System.Text.Json runs at type-load time inside
+        // AutoCAD's isolated AssemblyLoadContext, before the ALC has resolved the shared-framework
+        // path, causing a TypeInitializationException that silently prevents the whole assembly
+        // from registering (Initialize() never fires, "Unknown command" result).
+        private static JsonSerializerOptions MakeJsonOptions() => new()
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -54,7 +59,7 @@ namespace AutoCADDrawingMetadataExtractor
             {
                 var extractor = new DwgMetadataExtractor(db);
                 var report = extractor.BuildReport();
-                string json = JsonSerializer.Serialize(report, JsonOptions);
+                string json = JsonSerializer.Serialize(report, MakeJsonOptions());
                 File.WriteAllText("result.json", json, Encoding.UTF8);
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
@@ -83,7 +88,7 @@ namespace AutoCADDrawingMetadataExtractor
             {
                 var extractor = new DwgMetadataExtractor(db);
                 var result = extractor.BuildCombinedReport();
-                string json = JsonSerializer.Serialize(result, JsonOptions);
+                string json = JsonSerializer.Serialize(result, MakeJsonOptions());
                 File.WriteAllText("result.json", json, Encoding.UTF8);
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
