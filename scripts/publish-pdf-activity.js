@@ -120,6 +120,15 @@ async function apiPatch(token, apiPath, payload) {
   }, body);
 }
 
+async function apiDelete(token, apiPath) {
+  return httpsRequest({
+    hostname: BASE_URL,
+    path:     apiPath,
+    method:   "DELETE",
+    headers:  { "Authorization": `Bearer ${token}` }
+  });
+}
+
 // ── Activity definition builder ───────────────────────────────────────────────
 /**
  * Builds the Activity payload shared by both operations.
@@ -180,6 +189,14 @@ function buildActivityDef(activityId) {
 }
 
 // ── Create or update one Activity ────────────────────────────────────────────
+async function deleteAndRecreate(token, activityId, def) {
+  console.log(`  ⚠️  100-version limit reached for '${activityId}' — deleting and recreating...`);
+  const del = await apiDelete(token, `/da/us-east/v3/activities/${activityId}`);
+  if (del.status !== 204 && del.status !== 200)
+    throw new Error(`Delete failed for '${activityId}' (${del.status}): ${JSON.stringify(del.body)}`);
+  return apiPost(token, "/da/us-east/v3/activities", def);
+}
+
 async function publishActivity(token, activityId) {
   console.log(`\n── Activity: ${NICKNAME}.${activityId} ──`);
 
@@ -190,7 +207,7 @@ async function publishActivity(token, activityId) {
 
   let version;
 
-if (res.status === 200 || res.status === 201) {
+  if (res.status === 200 || res.status === 201) {
     console.log(`✔ Created Activity '${activityId}' (version ${res.body.version})`);
     version = res.body.version;
   } else if (res.status === 409) {
@@ -202,11 +219,25 @@ if (res.status === 200 || res.status === 201) {
       `/da/us-east/v3/activities/${activityId}/versions`,
       versionDef
     );
+    if (res.status === 403) {
+      // 100-version limit hit on POST /versions
+      res = await deleteAndRecreate(token, activityId, def);
+    }
     if (res.status !== 200 && res.status !== 201)
       throw new Error(
         `Failed to version Activity '${activityId}' (${res.status}): ${JSON.stringify(res.body)}`
       );
     console.log(`✔ New version of '${activityId}': ${res.body.version}`);
+    version = res.body.version;
+  } else if (res.status === 403) {
+    // DA sometimes returns 403 "Maximum number of versions is 100" directly on
+    // POST /activities when the activity exists and is already at the limit.
+    res = await deleteAndRecreate(token, activityId, def);
+    if (res.status !== 200 && res.status !== 201)
+      throw new Error(
+        `Failed to recreate Activity '${activityId}' (${res.status}): ${JSON.stringify(res.body)}`
+      );
+    console.log(`✔ Recreated Activity '${activityId}' (version ${res.body.version})`);
     version = res.body.version;
   } else {
     throw new Error(
