@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- DA engine +26_0 headless runtime is .NET 8; AutoCAD.NET.Core 25.0.0 targets net8.0.
-         net10.0 assemblies CANNOT load on a .NET 8 host — silent "Unknown command" failure. -->
+    <!-- DA engine +25_0 (AutoCAD 2025) headless runtime is .NET 8.
+         +26_0 engine silently fails to load any plugin DLL regardless of TFM — use +25_0. -->
     <TargetFramework>net8.0-windows</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
