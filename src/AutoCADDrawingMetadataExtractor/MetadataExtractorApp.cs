@@ -54,7 +54,8 @@ namespace AutoCADDrawingMetadataExtractor
                 var extractor = new DwgMetadataExtractor(db);
                 var report = extractor.BuildReport();
                 string json = JsonConvert.SerializeObject(report, MakeJsonSettings());
-                File.WriteAllText("result.json", json, Encoding.UTF8);
+                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that breaks strict JSON parsers (JS JSON.parse).
+                File.WriteAllText("result.json", json, new UTF8Encoding(false));
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
             catch (System.Exception ex)
@@ -83,7 +84,8 @@ namespace AutoCADDrawingMetadataExtractor
                 var extractor = new DwgMetadataExtractor(db);
                 var result = extractor.BuildCombinedReport();
                 string json = JsonConvert.SerializeObject(result, MakeJsonSettings());
-                File.WriteAllText("result.json", json, Encoding.UTF8);
+                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that breaks strict JSON parsers (JS JSON.parse).
+                File.WriteAllText("result.json", json, new UTF8Encoding(false));
                 System.Console.WriteLine("[MetadataExtractor] Done -- result.json written (" + json.Length + " bytes).");
             }
             catch (System.Exception ex)

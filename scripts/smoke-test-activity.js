@@ -147,7 +147,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   console.log('───── result.json ─────');
   console.log(out.text.slice(0, 2000));
   console.log('───────────────────────');
-  try { JSON.parse(out.text); } catch { throw new Error('Smoke test FAILED: result.json is not valid JSON.'); }
+  try { JSON.parse(out.text.replace(/^\uFEFF/, '')); } catch { throw new Error('Smoke test FAILED: result.json is not valid JSON.'); }
 
   console.log('✅ Smoke test PASSED — work item succeeded and produced valid result.json.');
 })().catch(err => { console.error('\n❌', err.message); process.exit(1); });
