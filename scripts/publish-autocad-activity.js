@@ -7,6 +7,10 @@ const NICKNAME            = required('APS_NICKNAME');
 const BUNDLE_NAME         = process.env.BUNDLE_NAME     || 'AutoCADDrawingMetadataExtractor';
 const ALIAS               = process.env.ALIAS           || 'prod';
 const ACTIVITY_ID         = process.env.ACTIVITY_ID     || 'ExtractAutoCADDrawingMetadata';
+// COMMAND is the AutoCAD command the activity's script invokes. Lets one script
+// publish both activities: ExtractAutoCADDrawingMetadata (EXTRACTDWGMETADATA) and
+// ExtractAutoCADDrawingMetadataAll (EXTRACTALLDRAWINGMETADATA).
+const COMMAND             = process.env.COMMAND         || 'EXTRACTDWGMETADATA';
 const ENGINE_VERSION_HINT = process.env.ENGINE_VERSION  || null;
 // ENGINE_ID is resolved at runtime via resolveEngineId() — do not hardcode.
 
@@ -103,7 +107,7 @@ function buildActivityDef(engineId) {
     ],
     settings: {
       script: {
-        value: 'EXTRACTDWGMETADATA\n',
+        value: COMMAND + '\n',
       },
     },
     parameters: {
@@ -212,7 +216,7 @@ async function setAlias(token, version) {
   console.log(`   Bundle   : ${NICKNAME}.${BUNDLE_NAME}+${ALIAS}`);
   console.log(`   Activity : ${ACTIVITY_ID}`);
   console.log(`   Engine   : ${ENGINE_VERSION_HINT ? 'Autodesk.AutoCAD+' + ENGINE_VERSION_HINT : '(auto-detect)'}`);
-  console.log(`   Command  : EXTRACTDWGMETADATA`);
+  console.log(`   Command  : ${COMMAND}`);
 
   const token    = await getToken();
   const engineId = await resolveEngineId(token);

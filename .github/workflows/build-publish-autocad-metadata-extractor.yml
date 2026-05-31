@@ -95,21 +95,46 @@ jobs:
         run: node scripts/publish-autocad-appbundle.js
         shell: bash
 
-      # ── 8. Publish Activity to APS Design Automation ─────────────────────────
-      - name: Publish Activity
+      # ── 8a. Publish Activity: ExtractAutoCADDrawingMetadata (EXTRACTDWGMETADATA) ─
+      - name: Publish Activity (single)
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
           APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          ACTIVITY_ID:       ExtractAutoCADDrawingMetadata
+          COMMAND:           EXTRACTDWGMETADATA
         run: node scripts/publish-autocad-activity.js
         shell: bash
 
-      # ── 9. Summary ────────────────────────────────────────────────────────────
+      # ── 8b. Publish Activity: ExtractAutoCADDrawingMetadataAll (EXTRACTALLDRAWINGMETADATA) ─
+      #        Source-controlled twin of the activity Lovable used to delete/recreate per run.
+      - name: Publish Activity (all)
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          ACTIVITY_ID:       ExtractAutoCADDrawingMetadataAll
+          COMMAND:           EXTRACTALLDRAWINGMETADATA
+        run: node scripts/publish-autocad-activity.js
+        shell: bash
+
+      # ── 9. Smoke gate: run the activity end-to-end and fail the build unless it succeeds ─
+      - name: Smoke test (run activity on sample DWG)
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          SMOKE_ACTIVITY_ID: ExtractAutoCADDrawingMetadata
+        run: node scripts/smoke-test-activity.js
+        shell: bash
+
+      # ── 10. Summary ───────────────────────────────────────────────────────────
       - name: Summary
         run: |
           echo "✅ AppBundle '${{ env.BUNDLE_NAME }}+${{ env.ALIAS }}' published."
-          echo "✅ Activity '${{ env.ACTIVITY_ID }}+${{ env.ALIAS }}' published."
-          echo "   Engine  : Autodesk.AutoCAD+${{ env.ENGINE_VERSION }}"
-          echo "   Command : EXTRACTDWGMETADATA"
-          echo "   Output  : result.json"
+          echo "✅ Activities 'ExtractAutoCADDrawingMetadata+${{ env.ALIAS }}' and 'ExtractAutoCADDrawingMetadataAll+${{ env.ALIAS }}' published."
+          echo "✅ Smoke test passed (work item status: success)."
+          echo "   Engine   : Autodesk.AutoCAD+${{ env.ENGINE_VERSION }}"
+          echo "   Commands : EXTRACTDWGMETADATA / EXTRACTALLDRAWINGMETADATA"
+          echo "   Output   : result.json"
         shell: bash
