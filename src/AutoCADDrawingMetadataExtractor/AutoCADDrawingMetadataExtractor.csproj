@@ -1,29 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- DA engine +25_0 (AutoCAD 2025) headless runtime is .NET 8.
-         Use net8.0 (not net8.0-windows) — net8.0-windows adds Windows-API surface the
-         DA headless host may not satisfy, which causes silent DLL load failure. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- Proven DA-for-AutoCAD stack: .NET Framework 4.8 plugin running on the
+         AutoCAD 2024 (+24_3) engine. The +25_0 (.NET 8) engine silently refused to
+         load a correctly built net8.0 appbundle; every working Autodesk sample uses
+         .NET Framework + AcCoreMgd/AcDbMgd, so we match it. -->
+    <TargetFramework>net48</TargetFramework>
     <AssemblyName>AutoCADDrawingMetadataExtractor</AssemblyName>
     <RootNamespace>AutoCADDrawingMetadataExtractor</RootNamespace>
-    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <NoWarn>CA1416</NoWarn>
-    <!-- DIAGNOSTIC: do not emit *.deps.json — eliminates any host dependency-resolution
-         path so the bundle ships only the bare .dll. -->
-    <GenerateDependencyFile>false</GenerateDependencyFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- AutoCAD.NET.Core 25.0.0 — compile-time stub only; DA worker provides the real DLLs. -->
-    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- AcCoreMgd + AcDbMgd v20 (net45 lib, consumed by net48). Reference only —
+         ExcludeAssets="runtime" keeps the real AutoCAD DLLs out of the bundle
+         (equivalent to Copy Local = false); the DA worker provides them. -->
+    <PackageReference Include="AutoCAD.NET.Core" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
-  <!-- DIAGNOSTIC SMOKE TEST: exclude the extractor + models so the assembly has ZERO
-       external dependencies (no System.Text.Json). Restore these once the bisection
-       result is known. -->
+  <!-- DIAGNOSTIC SMOKE TEST: exclude the extractor + models. Re-include and convert
+       JSON to Newtonsoft.Json once the net48/+24_3 load is confirmed. -->
   <ItemGroup>
     <Compile Remove="DwgMetadataExtractor.cs" />
     <Compile Remove="Models.cs" />

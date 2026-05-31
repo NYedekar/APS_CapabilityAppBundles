@@ -1,59 +1,41 @@
 using Autodesk.AutoCAD.Runtime;
+using System;
 using System.IO;
 using System.Text;
 
-// ── DIAGNOSTIC SMOKE-TEST BUILD ──────────────────────────────────────────────
-// Temporary minimal build to bisect a persistent DA failure where the command is
-// "Unknown" and IExtensionApplication.Initialize() never fires, with no DLL load
-// error in the work-item report. It removes ALL external dependencies (no
-// System.Text.Json) and the entire extractor, leaving only assembly load,
-// Initialize(), and two commands that write a hard-coded result.json.
-//
-// Interpretation of the next DA run:
-//   * "[SMOKE] static ctor" / "[SMOKE] Initialize" appear + result.json written
-//        -> the assembly loads fine; the real failure is System.Text.Json or the
-//           extractor code. Next step: reintroduce extraction with zero ext deps.
-//   * Still "Unknown command" with no [SMOKE] lines
-//        -> the assembly is not being loaded at all -> structural/packaging or
-//           AutoCAD.NET reference problem, not our managed logic.
+// ── DIAGNOSTIC SMOKE-TEST BUILD (net48 / AutoCAD 2024 engine) ─────────────────
+// All in-bundle causes were eliminated on the .NET 8 / +25_0 engine: a correctly
+// built, correctly packaged net8.0 assembly was silently never loaded. The only
+// remaining variable is the framework/engine itself. This build matches Autodesk's
+// proven DA-for-AutoCAD reference stack exactly:
+//   * .NET Framework 4.8, AcCoreMgd/AcDbMgd v20 (Copy Local = false)
+//   * [assembly: CommandClass(...)] + [assembly: ExtensionApplication(null)]
+//     — the official sample passes null, i.e. NO IExtensionApplication.
+//   * static [CommandMethod] handlers.
+// Still a stub (writes hard-coded result.json, no extractor) so a passing run
+// proves the framework/engine was the blocker. If [SMOKE] lines appear, restore
+// the full extractor on this exact stack (with Newtonsoft.Json).
 // ─────────────────────────────────────────────────────────────────────────────
 
 [assembly: CommandClass(typeof(AutoCADDrawingMetadataExtractor.MetadataExtractorCommands))]
-[assembly: ExtensionApplication(typeof(AutoCADDrawingMetadataExtractor.MetadataExtractorApp))]
+[assembly: ExtensionApplication(null)]
 
 namespace AutoCADDrawingMetadataExtractor
 {
-    public class MetadataExtractorApp : IExtensionApplication
-    {
-        // A static ctor that runs at type load — if this prints, the CLR loaded and
-        // initialized the type, ruling out a TypeInitializationException.
-        static MetadataExtractorApp()
-        {
-            System.Console.WriteLine("[SMOKE] MetadataExtractorApp static ctor ran.");
-        }
-
-        public void Initialize()
-        {
-            System.Console.WriteLine("[SMOKE] Initialize called — assembly loaded successfully.");
-        }
-
-        public void Terminate() { }
-    }
-
     public class MetadataExtractorCommands
     {
-        private static void WriteSmokeResult(string command)
-        {
-            System.Console.WriteLine("[SMOKE] Command " + command + " invoked.");
-            string json = "{\"smoke\":\"ok\",\"command\":\"" + command + "\"}";
-            File.WriteAllText("result.json", json, Encoding.UTF8);
-            System.Console.WriteLine("[SMOKE] result.json written (" + json.Length + " bytes).");
-        }
-
         [CommandMethod("EXTRACTDWGMETADATA", CommandFlags.Modal)]
-        public static void ExtractDwgMetadata() => WriteSmokeResult("EXTRACTDWGMETADATA");
+        public static void ExtractDwgMetadata() => WriteSmoke("EXTRACTDWGMETADATA");
 
         [CommandMethod("EXTRACTALLDRAWINGMETADATA", CommandFlags.Modal)]
-        public static void ExtractAllDrawingMetadata() => WriteSmokeResult("EXTRACTALLDRAWINGMETADATA");
+        public static void ExtractAllDrawingMetadata() => WriteSmoke("EXTRACTALLDRAWINGMETADATA");
+
+        private static void WriteSmoke(string command)
+        {
+            Console.WriteLine("[SMOKE] Command " + command + " invoked (net48 build).");
+            string json = "{\"smoke\":\"ok\",\"command\":\"" + command + "\",\"framework\":\"net48\"}";
+            File.WriteAllText("result.json", json, Encoding.UTF8);
+            Console.WriteLine("[SMOKE] result.json written (" + json.Length + " bytes).");
+        }
     }
 }
