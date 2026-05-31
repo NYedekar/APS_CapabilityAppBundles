@@ -1,26 +1,28 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!-- Structure mirrors the official Autodesk DA-for-AutoCAD sample
+     (Autodesk-Forge/learn.forge.designautomation, UpdateDWGParam.bundle), which is
+     known to load under accoreconsole. Deliberately MINIMAL:
+       * Version + ProductCode present (the sample has both).
+       * NO SupportedLocales — that attribute makes the autoloader skip the bundle
+         when the DA worker locale doesn't match the exact string, which produced a
+         silent "Unknown command" with no load and no Initialize.
+       * NO AutodeskProduct / ProductType / AppVersion extras.
+       * Both LoadOnCommandInvocation and LoadOnAutoCADStartup = True, as the sample. -->
 <ApplicationPackage SchemaVersion="1.0"
-                    AutodeskProduct="AutoCAD"
+                    Version="1.0"
+                    ProductCode="{6FF48A6F-247A-480B-BE83-4C9AB098F03D}"
                     Name="AutoCADDrawingMetadataExtractor"
                     Description="Extracts all DWG metadata (summary info, layers, blocks, layouts, entity counts, symbol tables) to JSON."
-                    AppVersion="1.0.0"
-                    SupportedLocales="Enu"
-                    ProductType="Application"
                     Author="APS Team">
 
-  <CompanyDetails Name="APS" Email="" Url="" />
+  <CompanyDetails Name="APS" Url="" Email="" />
 
-  <Components Description="AutoCADDrawingMetadataExtractor core plugin">
-    <!-- No SeriesMin/SeriesMax: those use AutoCAD's internal release number (2025 = R25.0),
-         NOT the marketing year. The previous "R2022"/"R2025" values made the autoloader treat
-         the bundle as inapplicable to the R25.0 DA engine and SILENTLY SKIP it (no load, no
-         Initialize, no error) -> "Unknown command". Omitting the bounds applies the bundle to
-         every release and is future-proof as the DA engine version advances. -->
+  <Components>
     <RuntimeRequirements OS="Win64" Platform="AutoCAD" />
     <ComponentEntry AppName="AutoCADDrawingMetadataExtractor"
                     ModuleName="./Contents/AutoCADDrawingMetadataExtractor.dll"
                     AppDescription="DWG metadata extraction plugin"
-                    LoadOnCommandInvocation="False"
+                    LoadOnCommandInvocation="True"
                     LoadOnAutoCADStartup="True">
       <Commands GroupName="MetadataExtractorCommands">
         <Command Global="EXTRACTDWGMETADATA" Local="EXTRACTDWGMETADATA" />
