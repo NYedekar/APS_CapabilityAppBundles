@@ -80,8 +80,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const t = await token();
   const H = { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' };
 
-  // 1. Ensure transient bucket
-  const b = await req('PUT', BASE, '/oss/v2/buckets', H, JSON.stringify({ bucketKey: BUCKET_KEY, policyKey: 'transient' }));
+  // 1. Ensure transient bucket (OSS create bucket is POST, not PUT)
+  const b = await req('POST', BASE, '/oss/v2/buckets', H, JSON.stringify({ bucketKey: BUCKET_KEY, policyKey: 'transient' }));
   if (![200, 409].includes(b.status)) throw new Error(`bucket failed HTTP ${b.status}: ${JSON.stringify(b.body)}`);
   console.log(`   bucket: ${BUCKET_KEY} (HTTP ${b.status})`);
 
