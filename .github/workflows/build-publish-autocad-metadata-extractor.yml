@@ -6,8 +6,8 @@ on:
     paths:
       - 'src/AutoCADDrawingMetadataExtractor/**'
       - 'bundle/AutoCADDrawingMetadataExtractor.bundle/**'
-      - 'scripts/publish-autocad-appbundle.js'
-      - 'scripts/publish-autocad-activity.js'
+      - 'scripts/**'
+      - 'test/**'
       - '.github/workflows/build-publish-autocad-metadata-extractor.yml'
   workflow_dispatch:
 concurrency:
