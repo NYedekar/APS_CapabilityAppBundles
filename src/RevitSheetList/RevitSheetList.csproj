@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Scaffolded from templates/revit/Plugin.csproj. Proven stack: net48 + Revit R2026 engine. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RevitSheetList</AssemblyName>
+    <RootNamespace>RevitSheetList</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>9</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <NoWarn>CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile net48 on the GitHub Actions Windows runner without a full framework install. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+
+    <!-- BRIDGE FIX (confirmed): this package's sole payload is lib/net48/DesignAutomationBridge.dll,
+         which the Revit DA worker does NOT supply. Referenced WITHOUT ExcludeAssets="runtime" so the
+         bridge DLL is copied into Contents/ and ships in the bundle (matches the official
+         UpdateRVTParam.bundle). -->
+    <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" />
+
+    <!-- Revit API reference stubs — compile only; the worker supplies the real DLLs (keep the exclusion). -->
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+
+    <!-- net48 has no in-box JSON; Newtonsoft ships in the bundle. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
