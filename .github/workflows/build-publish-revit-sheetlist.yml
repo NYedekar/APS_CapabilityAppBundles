@@ -21,8 +21,13 @@ concurrency:
 
 env:
   ENGINE_VERSION: "2026"               # Autodesk.Revit+2026
-  BUNDLE_NAME:    "RevitSheetList"
-  ACTIVITY_ID:    "ExtractRevitSheetList"
+  # Unique DA ids for the test-drive, so we publish fresh (version 1) without colliding
+  # with any pre-existing 'RevitSheetList' on the shared APS app. The built bundle/zip are
+  # still named RevitSheetList (internal DLL/manifest unchanged); BUNDLE_ZIP points the
+  # publisher at that zip.
+  BUNDLE_NAME:    "RevitSheetListTD"
+  ACTIVITY_ID:    "ExtractRevitSheetListTD"
+  BUNDLE_ZIP:     "RevitSheetList.zip"
   ALIAS:          "prod"
 
 jobs:
@@ -88,6 +93,7 @@ jobs:
           BUNDLE_NAME:       ${{ env.BUNDLE_NAME }}
           ENGINE_VERSION:    ${{ env.ENGINE_VERSION }}
           ALIAS:             ${{ env.ALIAS }}
+          BUNDLE_ZIP:        ${{ env.BUNDLE_ZIP }}
         run: node scripts/publish-appbundle.js
         shell: bash
 
