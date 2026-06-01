@@ -9,7 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.ApplicationServices.Core;   // Application (core console)
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Runtime;
 using Newtonsoft.Json;
@@ -26,7 +26,11 @@ namespace AutoCADLayerReport
         {
             try
             {
-                var db = HostApplicationServices.WorkingDatabase;
+                // In accoreconsole the INPUT drawing is the active document. Read its database —
+                // HostApplicationServices.WorkingDatabase alone returns an EMPTY in-memory db
+                // (layer "0" only), so prefer MdiActiveDocument.Database and fall back.
+                var doc = Application.DocumentManager.MdiActiveDocument;
+                var db = doc?.Database ?? HostApplicationServices.WorkingDatabase;
                 var layers = new List<LayerRow>();
 
                 using (var tr = db.TransactionManager.StartTransaction())
