@@ -106,8 +106,14 @@ namespace RevitIFCExport
                     SpaceBoundaryLevel     = p.SpaceBoundaryLevel,
                 };
 
-                // Export the entire model (no FilterViewId = whole model)
-                bool ok = doc.Export(exportDir, "result", options);
+                // IFCExportOptions.Export requires an open transaction — wrap and commit.
+                bool ok;
+                using (var tx = new Transaction(doc, "ExportIFC"))
+                {
+                    tx.Start();
+                    ok = doc.Export(exportDir, "result", options);
+                    tx.Commit();
+                }
 
                 if (!ok)
                     throw new InvalidOperationException(
