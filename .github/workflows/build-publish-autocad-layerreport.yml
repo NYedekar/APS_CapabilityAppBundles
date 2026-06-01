@@ -100,6 +100,6 @@ jobs:
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
           APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
           SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
-          SAMPLE_DWG:        test/condo-skylight.dwg
+          SAMPLE_DWG:        test/sample.dwg
         run: node scripts/smoke-test-activity.js
         shell: bash
