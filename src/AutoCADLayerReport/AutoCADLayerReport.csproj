@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Scaffolded from templates/autocad/Plugin.csproj. Proven stack: net48 + AutoCAD 2024 (+24_3). -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>AutoCADLayerReport</AssemblyName>
+    <RootNamespace>AutoCADLayerReport</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <NoWarn>CA1416;CS8632</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AcCoreMgd + AcDbMgd v20 — reference only (worker provides the real DLLs). -->
+    <PackageReference Include="AutoCAD.NET.Core" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- net48 has no in-box JSON; Newtonsoft ships in Contents/. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>

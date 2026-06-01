@@ -1,0 +1,105 @@
+name: Build & Publish AutoCADLayerReport to APS
+
+# Scaffolded from the proven build-publish-autocad-metadata-extractor.yml. Uses a unique DA id
+# (AutoCADLayerReportTD) so it publishes fresh without colliding with the existing bundles or the
+# per-app AppBundle cap. Runs on the test-drive branch (no merge to main needed).
+
+on:
+  push:
+    branches: [main, feat/autocad-layerreport-testdrive]
+    paths:
+      - 'src/AutoCADLayerReport/**'
+      - 'bundle/AutoCADLayerReport.bundle/**'
+      - 'scripts/**'
+      - 'test/**'
+      - '.github/workflows/build-publish-autocad-layerreport.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-autocad-layerreport
+  cancel-in-progress: false
+
+env:
+  ENGINE_VERSION: "24_3"                 # Autodesk.AutoCAD+24_3 (AutoCAD 2024, net48) — NOT +25_0/+26_0
+  BUNDLE_NAME:    "AutoCADLayerReportTD"
+  ACTIVITY_ID:    "ReportAutoCADLayersTD"
+  COMMAND:        "LAYERREPORT"
+  ALIAS:          "prod"
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Build AutoCADLayerReport.dll
+        run: |
+          dotnet publish src/AutoCADLayerReport/AutoCADLayerReport.csproj `
+            --configuration Release `
+            --output "${{ github.workspace }}\bundle\AutoCADLayerReport.bundle\Contents\"
+        shell: pwsh
+
+      - name: Verify bundle structure
+        run: |
+          $bundle = "bundle\AutoCADLayerReport.bundle"
+          Write-Host "=== Bundle contents ==="
+          Get-ChildItem -Recurse $bundle | Select-Object FullName | Format-Table
+          $checks = @(
+            "$bundle\PackageContents.xml",
+            "$bundle\Contents\AutoCADLayerReport.dll",
+            "$bundle\Contents\Newtonsoft.Json.dll"
+          )
+          foreach ($f in $checks) {
+            if (-not (Test-Path $f)) { Write-Error "Missing: $f"; exit 1 }
+            Write-Host "✅ $f"
+          }
+        shell: pwsh
+
+      - name: Zip bundle
+        run: |
+          $bundle = "bundle\AutoCADLayerReport.bundle"
+          $zipName = "${{ env.BUNDLE_NAME }}.zip"     # .bundle folder at the zip root
+          Compress-Archive -Path $bundle -DestinationPath $zipName -Force
+          Add-Type -Assembly System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\$zipName")
+          $zip.Entries | Select-Object FullName | Format-Table
+          $zip.Dispose()
+          Write-Host "✅ $zipName created"
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoCADLayerReportTD-bundle
+          path: AutoCADLayerReportTD.zip
+
+      - name: Publish AppBundle
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+        run: node scripts/publish-autocad-appbundle.js
+        shell: bash
+
+      - name: Publish Activity
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+        run: node scripts/publish-autocad-activity.js
+        shell: bash
+
+      - name: Smoke test (run activity on sample DWG)
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
+          SAMPLE_DWG:        test/condo-skylight.dwg
+        run: node scripts/smoke-test-activity.js
+        shell: bash
