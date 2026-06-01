@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Scaffolded from templates/revit/PackageContents.xml.
+     ModuleName → the .addin file; RuntimeRequirements inside <Components>; Series == engine (R2026). -->
+<ApplicationPackage SchemaVersion="1.0"
+                    AutodeskProduct="Revit"
+                    Name="RevitSheetList"
+                    Description="Exports every sheet (number, name, id) to result.json."
+                    AppVersion="1.0.0"
+                    SupportedLocales="Enu"
+                    ProductType="Application"
+                    Author="APS Team">
+
+  <CompanyDetails Name="APS" Email="" Url="" />
+
+  <Components Description="RevitSheetList core plugin">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="RevitSheetList"
+                    ModuleName="./Contents/RevitSheetList.addin"
+                    Version="1.0.0"
+                    LoadOnRevitStartup="True" />
+  </Components>
+
+</ApplicationPackage>

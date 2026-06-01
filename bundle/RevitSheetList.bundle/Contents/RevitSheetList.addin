@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Scaffolded from templates/revit/App.addin. Type=DBApplication (headless); Assembly .\dll;
+     fresh AddInId; FullClassName == namespace.class exactly. -->
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>RevitSheetList</Name>
+    <Assembly>.\RevitSheetList.dll</Assembly>
+    <AddInId>92010c8f-869f-4976-836a-79e19a46e81d</AddInId>
+    <FullClassName>RevitSheetList.RevitSheetListApp</FullClassName>
+    <VendorId>APS</VendorId>
+    <VendorDescription>APS Design Automation</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -1,0 +1,124 @@
+name: Build & Publish RevitSheetList to APS
+
+# Scaffolded from templates/ci/revit/build-publish.example.yml.
+# Drop into APS_CapabilityAppBundles alongside the existing scripts/ (uses publish-appbundle.js +
+# publish-activity.js — the Revit-flavored set). Requires repo secrets APS_CLIENT_ID/SECRET/NICKNAME.
+
+on:
+  push:
+    branches: [main, feat/revit-sheetlist-testdrive]   # test-drive: run on the branch, no merge to main needed
+    paths:
+      - 'src/RevitSheetList/**'
+      - 'bundle/RevitSheetList.bundle/**'
+      - 'scripts/**'
+      - 'test/**'
+      - '.github/workflows/build-publish-revit-sheetlist.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-revit-sheetlist
+  cancel-in-progress: false
+
+env:
+  ENGINE_VERSION: "2026"               # Autodesk.Revit+2026
+  # Unique DA ids for the test-drive, so we publish fresh (version 1) without colliding
+  # with any pre-existing 'RevitSheetList' on the shared APS app. The built bundle/zip are
+  # still named RevitSheetList (internal DLL/manifest unchanged); BUNDLE_ZIP points the
+  # publisher at that zip.
+  BUNDLE_NAME:    "RevitSheetListTD"
+  ACTIVITY_ID:    "ExtractRevitSheetListTD"
+  BUNDLE_ZIP:     "RevitSheetList.zip"
+  ALIAS:          "prod"
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - uses: NuGet/setup-nuget@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore NuGet packages
+        run: nuget restore src/RevitSheetList/RevitSheetList.csproj
+
+      - name: Build RevitSheetList.dll
+        run: |
+          msbuild src/RevitSheetList/RevitSheetList.csproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:OutputPath="${{ github.workspace }}\bundle\RevitSheetList.bundle\Contents\"
+        shell: pwsh
+
+      - name: Verify bundle layout (incl. bridge) and create zip
+        run: |
+          $bundle = "bundle\RevitSheetList.bundle"
+          Write-Host "=== Bundle contents ===" -ForegroundColor Cyan
+          Get-ChildItem -Recurse $bundle | Select-Object FullName
+
+          if (-not (Test-Path "$bundle\PackageContents.xml")) { Write-Error "MISSING: PackageContents.xml"; exit 1 }
+          if (-not (Test-Path "$bundle\Contents\RevitSheetList.addin")) { Write-Error "MISSING: Contents\RevitSheetList.addin"; exit 1 }
+          if (-not (Test-Path "$bundle\Contents\RevitSheetList.dll")) { Write-Error "MISSING: Contents\RevitSheetList.dll"; exit 1 }
+          if (-not (Test-Path "$bundle\Contents\Newtonsoft.Json.dll")) { Write-Error "MISSING: Contents\Newtonsoft.Json.dll"; exit 1 }
+          # ── THE BRIDGE-FIX GATE ──────────────────────────────────────────────
+          # DesignAutomationBridge.dll MUST ship — the Revit DA worker does NOT supply it.
+          # If this fails, the bridge package was referenced with ExcludeAssets="runtime"; remove it.
+          if (-not (Test-Path "$bundle\Contents\DesignAutomationBridge.dll")) {
+            Write-Error "MISSING: Contents\DesignAutomationBridge.dll — bridge fix regressed (ExcludeAssets=runtime on Autodesk.Forge.DesignAutomation.Revit)"; exit 1
+          }
+          Write-Host "✅ DesignAutomationBridge.dll present — bridge fix holds." -ForegroundColor Green
+
+          Compress-Archive -Path $bundle -DestinationPath RevitSheetList.zip -Force
+          Add-Type -Assembly System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\RevitSheetList.zip")
+          $zip.Entries | Select-Object FullName | Format-Table -AutoSize
+          $zip.Dispose()
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RevitSheetList-bundle
+          path: RevitSheetList.zip
+
+      - name: Publish AppBundle to APS
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          BUNDLE_NAME:       ${{ env.BUNDLE_NAME }}
+          ENGINE_VERSION:    ${{ env.ENGINE_VERSION }}
+          ALIAS:             ${{ env.ALIAS }}
+          BUNDLE_ZIP:        ${{ env.BUNDLE_ZIP }}
+        run: node scripts/publish-appbundle.js
+        shell: bash
+
+      - name: Publish Activity to APS
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          BUNDLE_NAME:       ${{ env.BUNDLE_NAME }}
+          ENGINE_VERSION:    ${{ env.ENGINE_VERSION }}
+          ALIAS:             ${{ env.ALIAS }}
+          ACTIVITY_ID:       ${{ env.ACTIVITY_ID }}
+        run: node scripts/publish-activity.js
+        shell: bash
+
+      # ── END-TO-END SMOKE GATE (Revit) ───────────────────────────────────────
+      # Runs the just-published activity on test/sample.rvt and FAILS the build unless
+      # the work item returns status:success + a valid, no-BOM result.json with SheetCount.
+      - name: Smoke test (run activity on sample RVT)
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          ALIAS:             ${{ env.ALIAS }}
+          SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
+          SAMPLE_RVT:        test/sample.rvt
+        run: node scripts/smoke-test-revit.js
+        shell: bash
