@@ -43,7 +43,9 @@ namespace RevitSheetList
                     {
                         Number = s.SheetNumber,
                         Name   = s.Name,
-                        Id     = s.Id.IntegerValue,
+                        // ElementId.IntegerValue (int) was REMOVED in Revit 2024+ — use .Value (long).
+                        // It compiles against the 2024 stubs but throws "Method not found" on the 2026 runtime.
+                        Id     = s.Id.Value,
                     })
                     .ToList();
 
@@ -84,6 +86,6 @@ namespace RevitSheetList
     {
         public string Number { get; set; } = "";
         public string Name { get; set; } = "";
-        public int Id { get; set; }
+        public long Id { get; set; }   // ElementId.Value is Int64 in Revit 2024+
     }
 }
