@@ -171,17 +171,22 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     throw new Error("Smoke FAILED: result.json has UTF-8 BOM (write with new UTF8Encoding(false))");
   let parsed;
   try { parsed = JSON.parse(out.text); } catch { throw new Error("Smoke FAILED: result.json is not valid JSON"); }
-  if (typeof parsed.ok !== "boolean")
-    throw new Error(`Smoke FAILED: result.json missing boolean 'ok' (got: ${JSON.stringify(parsed).slice(0, 200)})`);
-  if (!parsed.ok)
-    throw new Error(`Smoke FAILED: result.json has ok=false: ${parsed.error}`);
-  if (typeof parsed.summary?.total !== "number")
-    throw new Error(`Smoke FAILED: result.json missing numeric summary.total`);
+  // Newtonsoft.Json serialises C# PascalCase properties as PascalCase — handle both casing variants.
+  const ok      = parsed.ok      ?? parsed.Ok;
+  const errMsg  = parsed.error   ?? parsed.Error;
+  const summary = parsed.summary ?? parsed.Summary;
+  if (typeof ok !== "boolean")
+    throw new Error(`Smoke FAILED: result.json missing boolean 'ok'/'Ok' (got: ${JSON.stringify(parsed).slice(0, 200)})`);
+  if (!ok)
+    throw new Error(`Smoke FAILED: result.json ok=false: ${errMsg}`);
+  const total = summary?.total ?? summary?.Total;
+  if (typeof total !== "number")
+    throw new Error(`Smoke FAILED: result.json missing numeric summary.total/Total`);
 
   // 8. Verify result.rvt was written (> 0 bytes)
   const rvtOut = await getUrl(resultRvtUrl);
   if (rvtOut.raw.length < 100)
     throw new Error(`Smoke FAILED: result.rvt is suspiciously small (${rvtOut.raw.length} bytes)`);
 
-  console.log(`✅ Smoke PASSED — status:success, ok=true, summary.total=${parsed.summary.total}, result.rvt=${rvtOut.raw.length} bytes`);
+  console.log(`✅ Smoke PASSED — status:success, ok=true, summary.total=${total}, result.rvt=${rvtOut.raw.length} bytes`);
 })().catch(err => { console.error("\n❌", err.message); process.exit(1); });
