@@ -39,6 +39,7 @@ using System.Linq;
 using System.Text;
 using ExcelDataReader;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.DB;
 using DesignAutomationFramework;
@@ -71,16 +72,23 @@ namespace RevitParameterUpdater
 
                 Console.WriteLine($"[RevitParameterUpdater] Processing: {doc.Title}");
 
-                // ── 1. Read control params ──────────────────────────────────
+                // ── 1. Read control params + optional inline changes ─────────
                 string inputMode = "delta_file";
+                List<ChangeRequest>? inlineChanges = null;
+
                 if (File.Exists("params.json"))
                 {
                     try
                     {
-                        var ctrl = JsonConvert.DeserializeObject<RunParams>(
-                            File.ReadAllText("params.json", Encoding.UTF8));
+                        var paramsText = File.ReadAllText("params.json", Encoding.UTF8);
+                        var ctrl = JsonConvert.DeserializeObject<RunParams>(paramsText);
                         if (ctrl?.InputMode != null)
                             inputMode = ctrl.InputMode.ToLowerInvariant().Trim();
+                        if (ctrl?.Changes != null)
+                        {
+                            inlineChanges = InputParser.ParseJson(ctrl.Changes.ToString());
+                            Console.WriteLine($"[RevitParameterUpdater] Inline changes in params.json: {inlineChanges.Count}");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -89,13 +97,41 @@ namespace RevitParameterUpdater
                 }
                 Console.WriteLine($"[RevitParameterUpdater] inputMode={inputMode}");
 
-                // ── 2. Parse change requests ────────────────────────────────
-                List<ChangeRequest> requests;
-                if (!File.Exists("params_input.dat"))
-                    throw new InvalidOperationException("params_input.dat not found in working directory.");
+                // ── 2. Parse change requests ─────────────────────────────────
+                // Diagnostic: log what's actually in the working directory.
+                var wdFiles = Directory.GetFiles(Directory.GetCurrentDirectory());
+                Console.WriteLine($"[RevitParameterUpdater] Working dir files: {string.Join(", ", wdFiles.Select(f => Path.GetFileName(f)))}");
 
-                requests = InputParser.Parse("params_input.dat");
-                Console.WriteLine($"[RevitParameterUpdater] Parsed {requests.Count} change request(s) from input.");
+                List<ChangeRequest> requests;
+                if (File.Exists("params_input.dat"))
+                {
+                    var fSize = new FileInfo("params_input.dat").Length;
+                    var magic = new byte[Math.Min(8, (int)fSize)];
+                    using (var fs = File.OpenRead("params_input.dat"))
+                        fs.Read(magic, 0, magic.Length);
+                    Console.WriteLine($"[RevitParameterUpdater] params_input.dat: {fSize} bytes  magic={BitConverter.ToString(magic)}");
+
+                    requests = InputParser.Parse("params_input.dat");
+                    Console.WriteLine($"[RevitParameterUpdater] Parsed {requests.Count} change request(s) from params_input.dat");
+
+                    // If the file parsed to 0 rows (e.g. wrong content type) fall back to inline changes.
+                    if (requests.Count == 0 && inlineChanges?.Count > 0)
+                    {
+                        Console.WriteLine($"[RevitParameterUpdater] params_input.dat yielded 0 rows — using inline changes from params.json");
+                        requests = inlineChanges;
+                    }
+                }
+                else if (inlineChanges?.Count > 0)
+                {
+                    Console.WriteLine($"[RevitParameterUpdater] params_input.dat absent — using {inlineChanges.Count} inline change(s) from params.json");
+                    requests = inlineChanges;
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "No change requests: params_input.dat is absent/empty and params.json has no 'changes' array.");
+                }
+                Console.WriteLine($"[RevitParameterUpdater] Total change requests to process: {requests.Count}");
 
                 // ── 3. Apply changes ────────────────────────────────────────
                 var updater = new Updater(doc);
@@ -147,6 +183,12 @@ namespace RevitParameterUpdater
     {
         [JsonProperty("inputMode")]
         public string? InputMode { get; set; }
+
+        // Optional inline change list — lets agents pass changes directly in params.json
+        // without needing a separate paramsInput file.
+        // Format: [{"elementId":"...","elementName":"...","category":"...","parameter":"...","value":"..."}]
+        [JsonProperty("changes")]
+        public JToken? Changes { get; set; }
     }
 
     // ─── Data models ─────────────────────────────────────────────────────────
@@ -310,7 +352,7 @@ namespace RevitParameterUpdater
 
         // ── JSON ──────────────────────────────────────────────────────────────
 
-        private static List<ChangeRequest> ParseJson(string text)
+        internal static List<ChangeRequest> ParseJson(string text)
         {
             var results = new List<ChangeRequest>();
 
