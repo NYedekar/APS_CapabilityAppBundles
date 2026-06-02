@@ -31,7 +31,7 @@ namespace CADStandardsChecker
                         report.Rules.Add(CheckLinetypesVsDws(db, dwsDb));
                     }
                 }
-                catch (Exception ex)
+                catch (System.Exception ex)
                 {
                     report.Rules.Add(new RuleResult
                     {

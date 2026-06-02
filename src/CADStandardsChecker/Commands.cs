@@ -90,7 +90,7 @@ namespace CADStandardsChecker
 
                 Console.WriteLine("[CHECKSTANDARDS] Done.");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 Console.WriteLine($"[CHECKSTANDARDS] ERROR: {ex.Message}");
                 var err = new { ok = false, error = ex.Message, stack = ex.StackTrace };
