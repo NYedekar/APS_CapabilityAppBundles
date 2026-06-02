@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Scaffolded from templates/revit/Plugin.csproj. Proven stack: net48 + Revit R2026 engine. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RevitParameterUpdater</AssemblyName>
+    <RootNamespace>RevitParameterUpdater</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>9</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <NoWarn>CA1416;8602</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile net48 on the GitHub Actions Windows runner without a full framework install. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+
+    <!-- BRIDGE FIX: DesignAutomationBridge.dll is NOT supplied by the Revit DA worker.
+         No ExcludeAssets="runtime" — the bridge DLL must ship in Contents/. -->
+    <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2023.0.1" />
+
+    <!-- Revit API reference stubs for compilation. ExcludeAssets="runtime": worker supplies real DLLs. -->
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+
+    <!-- net48 has no in-box JSON; ships in bundle. NOT System.Text.Json. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- XLSX reading. Both packages target net45 on .NET Framework — no extra code-page dep needed. -->
+    <PackageReference Include="ExcelDataReader" Version="3.6.0" />
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.6.0" />
+  </ItemGroup>
+
+</Project>

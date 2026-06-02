@@ -1,0 +1,628 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  RevitParameterUpdater — APS Design Automation (Revit R2026, net48)
+//
+//  Updates element parameters in a Revit model from a CSV, XLSX, or JSON input.
+//
+//  INPUTS (placed in working dir by DA before revitcoreconsole runs):
+//    input.rvt         — the Revit model to modify
+//    params_input.dat  — CSV / XLSX / JSON with change requests
+//    params.json       — control JSON: { "inputMode": "full_file|delta_file|text_input" }
+//
+//  OUTPUTS:
+//    result.rvt        — modified model (always written; unchanged if 0 changes)
+//    result.json       — { ok, summary: { total, applied, skipped, errors }, changes: [...] }
+//
+//  INPUT MODES:
+//    delta_file  — every row in params_input is a change to apply
+//    text_input  — same as delta_file; params_input is a JSON array from chat
+//    full_file   — params_input contains ALL elements; only rows whose
+//                  NewValue differs from the current model value are applied
+//
+//  COLUMN FORMAT (CSV / XLSX):
+//    ElementId (optional)  ElementName  Category (optional)  Parameter  NewValue
+//
+//  JSON format (text_input):
+//    [{"elementName":"...","parameter":"...","value":"...","elementId":"...","category":"..."}]
+//
+//  NET48 TRAPS (all guarded here):
+//    - ElementId.Value (long), NOT .IntegerValue (int) — removed in Revit 2024+
+//    - new UTF8Encoding(false) for result.json — Encoding.UTF8 emits BOM
+//    - No Dictionary.GetValueOrDefault — use TryGetValue
+//    - SetValueString used for Double/Integer; falls back to parsed Set()
+// ════════════════════════════════════════════════════════════════════════════
+
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Linq;
+using System.Text;
+using ExcelDataReader;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Autodesk.Revit.ApplicationServices;
+using Autodesk.Revit.DB;
+using DesignAutomationFramework;
+
+namespace RevitParameterUpdater
+{
+    // ─── Entry point ─────────────────────────────────────────────────────────
+
+    [Autodesk.Revit.Attributes.Regeneration(Autodesk.Revit.Attributes.RegenerationOption.Manual)]
+    public class ParameterUpdaterApp : IExternalDBApplication
+    {
+        public ExternalDBApplicationResult OnStartup(ControlledApplication app)
+        {
+            DesignAutomationBridge.DesignAutomationReadyEvent += OnDesignAutomationReady;
+            return ExternalDBApplicationResult.Succeeded;
+        }
+
+        public ExternalDBApplicationResult OnShutdown(ControlledApplication app)
+            => ExternalDBApplicationResult.Succeeded;
+
+        private void OnDesignAutomationReady(object sender, DesignAutomationReadyEventArgs e)
+        {
+            e.Succeeded = true;
+            UpdateResult result;
+
+            try
+            {
+                var doc = e.DesignAutomationData.RevitDoc
+                    ?? throw new InvalidOperationException("Revit document could not be opened.");
+
+                Console.WriteLine($"[RevitParameterUpdater] Processing: {doc.Title}");
+
+                // ── 1. Read control params + optional inline changes ─────────
+                string inputMode = "delta_file";
+                List<ChangeRequest>? inlineChanges = null;
+
+                if (File.Exists("params.json"))
+                {
+                    try
+                    {
+                        var paramsText = File.ReadAllText("params.json", Encoding.UTF8);
+                        var ctrl = JsonConvert.DeserializeObject<RunParams>(paramsText);
+                        if (ctrl?.InputMode != null)
+                            inputMode = ctrl.InputMode.ToLowerInvariant().Trim();
+                        if (ctrl?.Changes != null)
+                        {
+                            inlineChanges = InputParser.ParseJson(ctrl.Changes.ToString());
+                            Console.WriteLine($"[RevitParameterUpdater] Inline changes in params.json: {inlineChanges.Count}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RevitParameterUpdater] WARNING: could not parse params.json — {ex.Message}; defaulting to delta_file");
+                    }
+                }
+                Console.WriteLine($"[RevitParameterUpdater] inputMode={inputMode}");
+
+                // ── 2. Parse change requests ─────────────────────────────────
+                // Diagnostic: log what's actually in the working directory.
+                var wdFiles = Directory.GetFiles(Directory.GetCurrentDirectory());
+                Console.WriteLine($"[RevitParameterUpdater] Working dir files: {string.Join(", ", wdFiles.Select(f => Path.GetFileName(f)))}");
+
+                List<ChangeRequest> requests;
+                if (File.Exists("params_input.dat"))
+                {
+                    var fSize = new FileInfo("params_input.dat").Length;
+                    var magic = new byte[Math.Min(8, (int)fSize)];
+                    using (var fs = File.OpenRead("params_input.dat"))
+                        fs.Read(magic, 0, magic.Length);
+                    Console.WriteLine($"[RevitParameterUpdater] params_input.dat: {fSize} bytes  magic={BitConverter.ToString(magic)}");
+
+                    requests = InputParser.Parse("params_input.dat");
+                    Console.WriteLine($"[RevitParameterUpdater] Parsed {requests.Count} change request(s) from params_input.dat");
+
+                    // If the file parsed to 0 rows (e.g. wrong content type) fall back to inline changes.
+                    if (requests.Count == 0 && inlineChanges?.Count > 0)
+                    {
+                        Console.WriteLine($"[RevitParameterUpdater] params_input.dat yielded 0 rows — using inline changes from params.json");
+                        requests = inlineChanges;
+                    }
+                }
+                else if (inlineChanges?.Count > 0)
+                {
+                    Console.WriteLine($"[RevitParameterUpdater] params_input.dat absent — using {inlineChanges.Count} inline change(s) from params.json");
+                    requests = inlineChanges;
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "No change requests: params_input.dat is absent/empty and params.json has no 'changes' array.");
+                }
+                Console.WriteLine($"[RevitParameterUpdater] Total change requests to process: {requests.Count}");
+
+                // ── 3. Apply changes ────────────────────────────────────────
+                var updater = new Updater(doc);
+                var changes = updater.Apply(requests, inputMode);
+
+                // ── 4. Save the model ───────────────────────────────────────
+                // DA always opens models detached from central, so IsWorkshared is false.
+                // SaveAsOptions alone is sufficient; WorksharingMode is not in the 2024 stubs.
+                string outPath = Path.GetFullPath("result.rvt");
+                doc.SaveAs(outPath, new SaveAsOptions { OverwriteExistingFile = true });
+                Console.WriteLine($"[RevitParameterUpdater] Saved modified model → result.rvt");
+
+                // ── 5. Build result ─────────────────────────────────────────
+                result = new UpdateResult
+                {
+                    Ok      = true,
+                    Summary = new ResultSummary
+                    {
+                        Total   = changes.Count,
+                        Applied = changes.Count(c => c.Status == "applied"),
+                        Skipped = changes.Count(c => c.Status == "skipped"),
+                        Errors  = changes.Count(c => c.Status == "error"),
+                    },
+                    Changes = changes,
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RevitParameterUpdater] FATAL: {ex.Message}\n{ex.StackTrace}");
+                result = new UpdateResult
+                {
+                    Ok    = false,
+                    Error = ex.Message,
+                    Summary = new ResultSummary(),
+                    Changes = new List<ChangeResult>(),
+                };
+                // e.Succeeded stays true — DA still uploads result.json so we can diagnose
+            }
+
+            string json = JsonConvert.SerializeObject(result, Formatting.Indented);
+            File.WriteAllText("result.json", json, new UTF8Encoding(false)); // no BOM
+            Console.WriteLine($"[RevitParameterUpdater] Done. Applied={result.Summary.Applied} Skipped={result.Summary.Skipped} Errors={result.Summary.Errors}");
+        }
+    }
+
+    // ─── Control params ───────────────────────────────────────────────────────
+
+    internal class RunParams
+    {
+        [JsonProperty("inputMode")]
+        public string? InputMode { get; set; }
+
+        // Optional inline change list — lets agents pass changes directly in params.json
+        // without needing a separate paramsInput file.
+        // Format: [{"elementId":"...","elementName":"...","category":"...","parameter":"...","value":"..."}]
+        [JsonProperty("changes")]
+        public JToken? Changes { get; set; }
+    }
+
+    // ─── Data models ─────────────────────────────────────────────────────────
+
+    internal class ChangeRequest
+    {
+        public string? ElementId   { get; set; }
+        public string  ElementName { get; set; } = "";
+        public string? Category    { get; set; }
+        public string  Parameter   { get; set; } = "";
+        public string  NewValue    { get; set; } = "";
+    }
+
+    public class ChangeResult
+    {
+        public string  ElementId   { get; set; } = "";
+        public string  ElementName { get; set; } = "";
+        public string  Parameter   { get; set; } = "";
+        public string  OldValue    { get; set; } = "";
+        public string  NewValue    { get; set; } = "";
+        public string  Status      { get; set; } = "";  // "applied" | "skipped" | "error"
+        public string? Reason      { get; set; }
+    }
+
+    public class ResultSummary
+    {
+        public int Total   { get; set; }
+        public int Applied { get; set; }
+        public int Skipped { get; set; }
+        public int Errors  { get; set; }
+    }
+
+    public class UpdateResult
+    {
+        public bool         Ok      { get; set; }
+        public string?      Error   { get; set; }
+        public ResultSummary Summary { get; set; } = new ResultSummary();
+        public List<ChangeResult> Changes { get; set; } = new List<ChangeResult>();
+    }
+
+    // ─── Input parser ─────────────────────────────────────────────────────────
+    // Detects format from magic bytes:
+    //   PK\x03\x04 → XLSX (ZIP container)
+    //   '[' or '{' → JSON array
+    //   everything else → CSV
+
+    internal static class InputParser
+    {
+        internal static List<ChangeRequest> Parse(string path)
+        {
+            // Detect format via magic bytes
+            byte[] sig = new byte[4];
+            using (var fs = File.OpenRead(path))
+                fs.Read(sig, 0, 4);
+
+            if (sig[0] == 0x50 && sig[1] == 0x4B && sig[2] == 0x03 && sig[3] == 0x04)
+                return ParseXlsx(path);
+
+            string text = File.ReadAllText(path, Encoding.UTF8).TrimStart('﻿').TrimStart();
+            if (text.StartsWith("[") || text.StartsWith("{"))
+                return ParseJson(text);
+
+            return ParseCsv(text);
+        }
+
+        // ── XLSX ──────────────────────────────────────────────────────────────
+
+        private static List<ChangeRequest> ParseXlsx(string path)
+        {
+            var results = new List<ChangeRequest>();
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read))
+            using (var reader = ExcelReaderFactory.CreateReader(stream))
+            {
+                var ds = reader.AsDataSet(new ExcelDataSetConfiguration
+                {
+                    ConfigureDataTable = _ => new ExcelDataTableConfiguration { UseHeaderRow = true }
+                });
+                if (ds.Tables.Count == 0) return results;
+                var table = ds.Tables[0];
+
+                foreach (DataRow row in table.Rows)
+                {
+                    var req = RowToRequest(
+                        col => GetCell(row, table, col));
+                    if (req != null) results.Add(req);
+                }
+            }
+            return results;
+        }
+
+        private static string GetCell(DataRow row, DataTable table, string colName)
+        {
+            foreach (DataColumn col in table.Columns)
+            {
+                if (string.Equals(col.ColumnName?.Trim(), colName, StringComparison.OrdinalIgnoreCase))
+                    return row[col]?.ToString()?.Trim() ?? "";
+            }
+            return "";
+        }
+
+        // ── CSV ───────────────────────────────────────────────────────────────
+
+        private static List<ChangeRequest> ParseCsv(string text)
+        {
+            var results = new List<ChangeRequest>();
+            var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (lines.Length == 0) return results;
+
+            // Parse header row
+            var headers = SplitCsvRow(lines[0])
+                .Select(h => h.Trim())
+                .ToList();
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var cells = SplitCsvRow(lines[i]);
+                string Get(string name)
+                {
+                    int idx = headers.FindIndex(h => string.Equals(h, name, StringComparison.OrdinalIgnoreCase));
+                    return idx >= 0 && idx < cells.Count ? cells[idx].Trim() : "";
+                }
+                var req = RowToRequest(Get);
+                if (req != null) results.Add(req);
+            }
+            return results;
+        }
+
+        private static List<string> SplitCsvRow(string line)
+        {
+            var fields = new List<string>();
+            var sb = new StringBuilder();
+            bool inQuote = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '"')
+                {
+                    if (inQuote && i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        sb.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuote = !inQuote;
+                    }
+                }
+                else if (c == ',' && !inQuote)
+                {
+                    fields.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            fields.Add(sb.ToString());
+            return fields;
+        }
+
+        // ── JSON ──────────────────────────────────────────────────────────────
+
+        internal static List<ChangeRequest> ParseJson(string text)
+        {
+            var results = new List<ChangeRequest>();
+
+            // Support both array and single-object input
+            text = text.Trim();
+            if (text.StartsWith("{"))
+                text = "[" + text + "]";
+
+            var items = JsonConvert.DeserializeObject<List<JsonChangeRow>>(text);
+            if (items == null) return results;
+
+            foreach (var item in items)
+            {
+                if (string.IsNullOrWhiteSpace(item.Parameter)) continue;
+                results.Add(new ChangeRequest
+                {
+                    ElementId   = item.ElementId?.Trim(),
+                    ElementName = (item.ElementName ?? "").Trim(),
+                    Category    = item.Category?.Trim(),
+                    Parameter   = item.Parameter.Trim(),
+                    NewValue    = (item.Value ?? item.NewValue ?? "").Trim(),
+                });
+            }
+            return results;
+        }
+
+        // ── Shared row → ChangeRequest mapper ────────────────────────────────
+
+        private static ChangeRequest? RowToRequest(Func<string, string> get)
+        {
+            string param = get("Parameter");
+            if (string.IsNullOrWhiteSpace(param)) return null;
+
+            // Accept "ElementName" or "Name" in the header
+            string name = get("ElementName");
+            if (string.IsNullOrWhiteSpace(name)) name = get("Name");
+
+            return new ChangeRequest
+            {
+                ElementId   = NullIfEmpty(get("ElementId")),
+                ElementName = name.Trim(),
+                Category    = NullIfEmpty(get("Category")),
+                Parameter   = param.Trim(),
+                NewValue    = get("NewValue").Trim(),
+            };
+        }
+
+        private static string? NullIfEmpty(string s)
+            => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        // ── JSON row shape ─────────────────────────────────────────────────────
+        private class JsonChangeRow
+        {
+            [JsonProperty("elementId")]   public string? ElementId   { get; set; }
+            [JsonProperty("elementName")] public string? ElementName { get; set; }
+            [JsonProperty("category")]    public string? Category    { get; set; }
+            [JsonProperty("parameter")]   public string? Parameter   { get; set; }
+            [JsonProperty("value")]       public string? Value       { get; set; }
+            [JsonProperty("newValue")]    public string? NewValue    { get; set; }
+        }
+    }
+
+    // ─── Updater ──────────────────────────────────────────────────────────────
+
+    internal class Updater
+    {
+        private readonly Document _doc;
+
+        // Name lookup map built once: elem.Name (lower) → list of (element, categoryName)
+        // Only built lazily when a name-based lookup is needed.
+        private Dictionary<string, List<(Element elem, string cat)>>? _nameMap;
+
+        internal Updater(Document doc) => _doc = doc;
+
+        internal List<ChangeResult> Apply(List<ChangeRequest> requests, string inputMode)
+        {
+            var results = new List<ChangeResult>();
+            if (requests.Count == 0) return results;
+
+            // Build name map if any request lacks an ElementId
+            if (requests.Any(r => string.IsNullOrEmpty(r.ElementId)))
+                _nameMap = BuildNameMap();
+
+            using (var tx = new Transaction(_doc, "RevitParameterUpdater: batch update"))
+            {
+                tx.Start();
+                foreach (var req in requests)
+                    results.Add(ApplyOne(req, inputMode));
+                tx.Commit();
+            }
+            return results;
+        }
+
+        private ChangeResult ApplyOne(ChangeRequest req, string inputMode)
+        {
+            var res = new ChangeResult
+            {
+                ElementName = req.ElementName,
+                Parameter   = req.Parameter,
+                NewValue    = req.NewValue,
+            };
+
+            // ── 1. Find element ───────────────────────────────────────────
+            Element? elem = FindElement(req);
+            if (elem == null)
+            {
+                res.Status = "error";
+                res.Reason = $"element not found (name='{req.ElementName}', id='{req.ElementId}', category='{req.Category}')";
+                Console.WriteLine($"[RevitParameterUpdater] {res.Status}: {res.Reason}");
+                return res;
+            }
+
+            // ElementId.Value returns long (compatible with R2026; .IntegerValue was removed in 2024+)
+            res.ElementId   = elem.Id.Value.ToString();
+            res.ElementName = !string.IsNullOrEmpty(elem.Name) ? elem.Name : req.ElementName;
+
+            // ── 2. Find parameter ─────────────────────────────────────────
+            Parameter? param = elem.LookupParameter(req.Parameter);
+            if (param == null)
+            {
+                res.Status = "error";
+                res.Reason = $"parameter '{req.Parameter}' not found on element {res.ElementId}";
+                Console.WriteLine($"[RevitParameterUpdater] {res.Status}: {res.Reason}");
+                return res;
+            }
+
+            res.OldValue = GetParamValue(param);
+
+            // ── 3. Delta check for full_file mode ─────────────────────────
+            if (inputMode == "full_file")
+            {
+                bool same = string.Equals(
+                    res.OldValue.Trim(), req.NewValue.Trim(),
+                    StringComparison.OrdinalIgnoreCase);
+                if (same)
+                {
+                    res.Status = "skipped";
+                    res.Reason = "value already matches (full_file delta: no change)";
+                    return res;
+                }
+            }
+
+            // ── 4. Set value ──────────────────────────────────────────────
+            if (!SetParamValue(param, req.NewValue, out string reason))
+            {
+                res.Status = "error";
+                res.Reason = reason;
+                Console.WriteLine($"[RevitParameterUpdater] error on element {res.ElementId} param '{req.Parameter}': {reason}");
+                return res;
+            }
+
+            res.NewValue = GetParamValue(param); // read back the stored value
+            res.Status   = "applied";
+            Console.WriteLine($"[RevitParameterUpdater] applied: elem={res.ElementId} param='{req.Parameter}' '{res.OldValue}' → '{res.NewValue}'");
+            return res;
+        }
+
+        // ── Element lookup ────────────────────────────────────────────────────
+
+        private Element? FindElement(ChangeRequest req)
+        {
+            // By ElementId (fastest, most reliable)
+            if (!string.IsNullOrEmpty(req.ElementId) && long.TryParse(req.ElementId, out long id))
+                return _doc.GetElement(new ElementId(id));
+
+            // By name (+ optional category filter) using pre-built map
+            string nameLower = req.ElementName.ToLowerInvariant();
+            if (_nameMap == null || !_nameMap.TryGetValue(nameLower, out var candidates))
+                return null;
+
+            if (string.IsNullOrEmpty(req.Category))
+                return candidates.Count > 0 ? candidates[0].elem : null;
+
+            foreach (var (elem, cat) in candidates)
+            {
+                if (string.Equals(cat, req.Category, StringComparison.OrdinalIgnoreCase))
+                    return elem;
+            }
+            return null;
+        }
+
+        private Dictionary<string, List<(Element, string)>> BuildNameMap()
+        {
+            Console.WriteLine("[RevitParameterUpdater] Building element name map...");
+            var map = new Dictionary<string, List<(Element, string)>>(StringComparer.OrdinalIgnoreCase);
+            var collector = new FilteredElementCollector(_doc).WhereElementIsNotElementType();
+            foreach (Element elem in collector)
+            {
+                string name = elem.Name ?? "";
+                if (string.IsNullOrEmpty(name)) continue;
+                string key = name.ToLowerInvariant();
+                if (!map.TryGetValue(key, out var list))
+                {
+                    list = new List<(Element, string)>();
+                    map[key] = list;
+                }
+                list.Add((elem, elem.Category?.Name ?? ""));
+            }
+            Console.WriteLine($"[RevitParameterUpdater] Name map built — {map.Count} unique names.");
+            return map;
+        }
+
+        // ── Parameter value helpers ───────────────────────────────────────────
+
+        private static string GetParamValue(Parameter p)
+        {
+            try
+            {
+                if (!p.HasValue) return "";
+                return p.StorageType switch
+                {
+                    StorageType.String    => p.AsString() ?? "",
+                    StorageType.Double    => p.AsValueString() ?? p.AsDouble().ToString("G10"),
+                    StorageType.Integer   => p.AsValueString() ?? p.AsInteger().ToString(),
+                    StorageType.ElementId => p.AsElementId() == ElementId.InvalidElementId
+                                              ? "" : (p.AsValueString() ?? p.AsElementId().Value.ToString()),
+                    _                    => "",
+                };
+            }
+            catch { return ""; }
+        }
+
+        private static bool SetParamValue(Parameter p, string value, out string reason)
+        {
+            reason = "";
+            if (p.IsReadOnly) { reason = "parameter is read-only"; return false; }
+
+            try
+            {
+                switch (p.StorageType)
+                {
+                    case StorageType.String:
+                        p.Set(value);
+                        return true;
+
+                    case StorageType.Double:
+                        // SetValueString respects project units (e.g. "4200 mm", "13'-9\"").
+                        // Fall back to raw double parse if it refuses.
+                        if (p.SetValueString(value)) return true;
+                        if (double.TryParse(value,
+                            System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out double d))
+                        { p.Set(d); return true; }
+                        reason = $"cannot parse '{value}' as a unit string or number for this parameter";
+                        return false;
+
+                    case StorageType.Integer:
+                        // SetValueString handles Yes/No, enum labels, etc.
+                        if (p.SetValueString(value)) return true;
+                        if (int.TryParse(value, out int i)) { p.Set(i); return true; }
+                        reason = $"cannot parse '{value}' as an integer or enum for this parameter";
+                        return false;
+
+                    case StorageType.ElementId:
+                        if (long.TryParse(value, out long eid))
+                        { p.Set(new ElementId(eid)); return true; }
+                        reason = $"cannot parse '{value}' as an ElementId (expected numeric)";
+                        return false;
+
+                    default:
+                        reason = $"unsupported StorageType: {p.StorageType}";
+                        return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                reason = ex.Message;
+                return false;
+            }
+        }
+    }
+}
