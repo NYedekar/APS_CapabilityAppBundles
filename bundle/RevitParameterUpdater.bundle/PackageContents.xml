@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- AppBundle: RevitParameterUpdater
+     Updates Revit element parameters from a CSV, XLSX, or JSON input.
+     Scaffolded from templates/revit/PackageContents.xml.
+     CRITICAL: ModuleName → .addin file; RuntimeRequirements inside <Components>; SeriesMin/Max = R2026. -->
+<ApplicationPackage SchemaVersion="1.0"
+                    AutodeskProduct="Revit"
+                    Name="RevitParameterUpdater"
+                    Description="Update element parameters in a Revit model from CSV, XLSX, or JSON input."
+                    AppVersion="1.0.0"
+                    SupportedLocales="Enu"
+                    ProductType="Application"
+                    ProductCode="{292AB93D-C666-46FD-989F-A14888EF7076}"
+                    Author="APS Team">
+
+  <CompanyDetails Name="APS" Email="" Url="" />
+
+  <Components Description="RevitParameterUpdater core plugin">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="RevitParameterUpdater"
+                    ModuleName="./Contents/RevitParameterUpdater.addin"
+                    Version="1.0.0"
+                    LoadOnRevitStartup="True" />
+  </Components>
+
+</ApplicationPackage>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Revit add-in manifest for RevitParameterUpdater (DA headless).
+     CRITICAL: Type="DBApplication" — IExternalDBApplication, not IExternalApplication.
+     Assembly uses .\prefix resolved relative to this .addin (which lives in Contents/).
+     Fresh AddInId GUID — must not collide with any other loaded add-in. -->
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>RevitParameterUpdater</Name>
+    <Assembly>.\RevitParameterUpdater.dll</Assembly>
+    <AddInId>3621C80A-0D02-4B5B-A4C5-7F243EECA7B5</AddInId>
+    <FullClassName>RevitParameterUpdater.ParameterUpdaterApp</FullClassName>
+    <VendorId>APS</VendorId>
+    <VendorDescription>APS Design Automation</VendorDescription>
+  </AddIn>
+</RevitAddIns>
