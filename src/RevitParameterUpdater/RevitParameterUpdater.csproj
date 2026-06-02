@@ -9,7 +9,7 @@
     <LangVersion>9</LangVersion>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <NoWarn>CA1416</NoWarn>
+    <NoWarn>CA1416;8602</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -102,11 +102,10 @@ namespace RevitParameterUpdater
                 var changes = updater.Apply(requests, inputMode);
 
                 // ── 4. Save the model ───────────────────────────────────────
+                // DA always opens models detached from central, so IsWorkshared is false.
+                // SaveAsOptions alone is sufficient; WorksharingMode is not in the 2024 stubs.
                 string outPath = Path.GetFullPath("result.rvt");
-                var saveOpts = new SaveAsOptions { OverwriteExistingFile = true };
-                if (doc.IsWorkshared)
-                    saveOpts.SetWorksharingMode(WorksharingMode.Standalone);
-                doc.SaveAs(outPath, saveOpts);
+                doc.SaveAs(outPath, new SaveAsOptions { OverwriteExistingFile = true });
                 Console.WriteLine($"[RevitParameterUpdater] Saved modified model → result.rvt");
 
                 // ── 5. Build result ─────────────────────────────────────────
