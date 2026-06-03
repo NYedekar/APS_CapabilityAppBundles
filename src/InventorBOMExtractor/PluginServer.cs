@@ -18,7 +18,7 @@ namespace InventorBOMExtractor
         void Activate(object addInSiteObject, bool firstTime);
         void Deactivate();
         void ExecuteCommand(int commandID);
-        object Automation { get; }
+        object? Automation { get; }
     }
 
     [Guid("00b94922-a4b5-4867-98bc-4e9418b04cfe")]
@@ -26,7 +26,7 @@ namespace InventorBOMExtractor
     [ComVisible(true)]
     public class PluginServer : IApplicationAddInServer
     {
-        public object Automation { get; private set; }
+        public object? Automation { get; private set; }
 
         public void Activate(object addInSiteObject, bool firstTime)
         {
