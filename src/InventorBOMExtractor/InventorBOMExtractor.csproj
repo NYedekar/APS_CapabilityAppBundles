@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net47</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <AssemblyName>InventorBOMExtractor</AssemblyName>
     <RootNamespace>InventorBOMExtractor</RootNamespace>
     <Platforms>x64</Platforms>
@@ -9,37 +9,22 @@
     <OutputType>Library</OutputType>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <NoWarn>CA1416</NoWarn>
-    <!-- Ensure .NET Standard compat shims are picked up by the CI runner -->
-    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <!--
+      NO autodesk.inventor.interop.dll reference needed.
+      All Inventor API calls are made via dynamic COM dispatch (late-bound IDispatch).
+      This compiles on any machine without a local Inventor installation.
+    -->
   </PropertyGroup>
 
   <ItemGroup>
-    <!--
-      autodesk.inventor.interop.dll:
-        • Source:  C:\Program Files\Autodesk\Inventor <year>\Bin\Public Assemblies\
-        • Place a copy at  lib/inventor/autodesk.inventor.interop.dll  in this repo.
-        • EmbedInteropTypes=True  → COM type info embedded in the compiled DLL; the file
-          does NOT ship in the bundle (DA worker provides Inventor at runtime).
-        • Private=False           → never copied to the build output directory.
-    -->
-    <Reference Include="autodesk.inventor.interop">
-      <HintPath>..\..\lib\inventor\autodesk.inventor.interop.dll</HintPath>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-      <Private>False</Private>
-      <SpecificVersion>False</SpecificVersion>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Inventor DA utility (HeartBeat keepalive, NameValueMap extensions) -->
+    <!-- DA keepalive utility (HeartBeat) -->
     <PackageReference Include="Autodesk.Forge.DesignAutomation.Inventor.Utils" Version="2.0.1" />
-    <!-- JSON serialisation — ships in Contents/ (no in-box JSON on net47) -->
+    <!-- JSON output — no in-box JSON on net48 -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <!-- Allows GitHub Actions Windows runner to compile net47 without a full framework install -->
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-    <!-- Needed by the Inventor Utils netstandard2.0 package when consumed from net47 -->
+    <!-- Required for C# dynamic (late-bound COM dispatch) on net48 -->
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <!-- Allows the GitHub Actions Windows runner to compile net48 -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

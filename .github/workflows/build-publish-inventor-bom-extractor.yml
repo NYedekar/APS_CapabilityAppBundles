@@ -6,7 +6,6 @@ on:
     paths:
       - 'src/InventorBOMExtractor/**'
       - 'bundle/InventorBOMExtractor.bundle/**'
-      - 'lib/inventor/**'
       - 'scripts/publish-inventor-appbundle.js'
       - 'scripts/publish-inventor-activity.js'
       - 'scripts/smoke-test-inventor.js'
@@ -25,45 +24,19 @@ env:
 
 jobs:
   build-and-publish:
-    runs-on: windows-latest  # net47 + COM interop requires Windows build agent
+    runs-on: windows-latest
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # ── 2. Guard: verify the interop DLL is present ──────────────────────────
-      # lib/inventor/autodesk.inventor.interop.dll must be copied from
-      #   C:\Program Files\Autodesk\Inventor <year>\Bin\Public Assemblies\
-      # on a machine with Inventor installed, then committed to this repo.
-      - name: Verify Inventor interop DLL present
-        run: |
-          $dll = "lib\inventor\autodesk.inventor.interop.dll"
-          if (-not (Test-Path $dll)) {
-            Write-Error @"
-MISSING: $dll
-
-To fix:
-  1. On a Windows machine with Inventor installed, locate:
-       C:\Program Files\Autodesk\Inventor <year>\Bin\Public Assemblies\autodesk.inventor.interop.dll
-  2. Copy it to lib/inventor/ in this repo and git-commit it.
-  3. Re-run this workflow.
-
-The DLL is only needed for compilation (EmbedInteropTypes=True embeds the types
-into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
-"@
-            exit 1
-          }
-          Write-Host "✅ autodesk.inventor.interop.dll found ($('{0:N0}' -f (Get-Item $dll).Length) bytes)"
-        shell: pwsh
-
-      # ── 3. Setup .NET ────────────────────────────────────────────────────────
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'   # SDK for building; target is net47
+          dotnet-version: '8.x'
 
-      # ── 4. Build the plugin DLL into bundle/Contents/ ────────────────────────
+      # No autodesk.inventor.interop.dll needed — all Inventor calls are
+      # made via dynamic (IDispatch late binding). Compiles anywhere.
       - name: Build InventorBOMExtractor.dll
         run: |
           dotnet publish src/InventorBOMExtractor/InventorBOMExtractor.csproj `
@@ -71,14 +44,11 @@ into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
             --output "${{ github.workspace }}\bundle\InventorBOMExtractor.bundle\Contents\"
         shell: pwsh
 
-      # ── 5. Verify required files are present ─────────────────────────────────
       - name: Verify bundle structure
         run: |
           $bundle = "bundle\InventorBOMExtractor.bundle"
-
           Write-Host "=== Bundle contents ==="
           Get-ChildItem -Recurse $bundle | Select-Object FullName | Format-Table
-
           $checks = @(
             "$bundle\PackageContents.xml",
             "$bundle\Contents\InventorBOMExtractor.dll",
@@ -89,39 +59,27 @@ into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
             if (-not (Test-Path $f)) { Write-Error "Missing: $f"; exit 1 }
             Write-Host "✅ $f"
           }
-
-          # The interop DLL must NOT be in Contents/ (EmbedInteropTypes=True)
-          if (Test-Path "$bundle\Contents\autodesk.inventor.interop.dll") {
-            Write-Error "❌ autodesk.inventor.interop.dll must NOT be in bundle — EmbedInteropTypes should have prevented this."
-            exit 1
-          }
-          Write-Host "✅ autodesk.inventor.interop.dll correctly absent from bundle"
         shell: pwsh
 
-      # ── 6. Zip the .bundle folder ─────────────────────────────────────────────
       - name: Zip bundle
         run: |
           $bundle  = "bundle\InventorBOMExtractor.bundle"
           $zipName = "${{ env.BUNDLE_NAME }}.zip"
           Compress-Archive -Path $bundle -DestinationPath $zipName -Force
-
           Write-Host "=== Zip internal structure ==="
           Add-Type -Assembly System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\$zipName")
           $zip.Entries | Select-Object FullName | Format-Table
           $zip.Dispose()
-
           Write-Host "✅ $zipName created"
         shell: pwsh
 
-      # ── 7. Upload zip as build artifact ──────────────────────────────────────
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: InventorBOMExtractor-bundle
           path: InventorBOMExtractor.zip
 
-      # ── 8. Publish AppBundle to APS ───────────────────────────────────────────
       - name: Publish AppBundle
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
@@ -130,7 +88,6 @@ into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
         run: node scripts/publish-inventor-appbundle.js
         shell: bash
 
-      # ── 9. Publish Activity ───────────────────────────────────────────────────
       - name: Publish Activity (ExtractInventorBOM)
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
@@ -140,8 +97,7 @@ into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
         run: node scripts/publish-inventor-activity.js
         shell: bash
 
-      # ── 10. Smoke gate ────────────────────────────────────────────────────────
-      - name: Smoke test (run activity on sample Inventor zip)
+      - name: Smoke test
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
@@ -150,11 +106,9 @@ into InventorBOMExtractor.dll; the DA worker provides Inventor at runtime).
         run: node scripts/smoke-test-inventor.js
         shell: bash
 
-      # ── 11. Summary ───────────────────────────────────────────────────────────
       - name: Summary
         run: |
           echo "✅ AppBundle '${{ env.BUNDLE_NAME }}+${{ env.ALIAS }}' published."
           echo "✅ Activity 'ExtractInventorBOM+${{ env.ALIAS }}' published."
-          echo "✅ Smoke test passed (work item status: success)."
-          echo "   Output: result.json (BOM JSON)"
+          echo "✅ Smoke test passed."
         shell: bash
