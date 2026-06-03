@@ -6,15 +6,27 @@ using System.Runtime.InteropServices;
 
 namespace InventorBOMExtractor
 {
-    // ClassInterface.AutoDual exposes Activate/Deactivate/ExecuteCommand/Automation via IDispatch.
-    // IApplicationAddInSite is a vtable-only COM interface — accessing it via dynamic throws
-    // E_NOINTERFACE. We don't need the server object: Run(doc) works entirely from the doc arg.
-    [Guid("00b94922-a4b5-4867-98bc-4e9418b04cfe")]
-    [ClassInterface(ClassInterfaceType.AutoDual)]
+    // Manually declare IApplicationAddInServer so InventorCoreConsole can find the plugin
+    // via QI without needing Autodesk.Inventor.Interop.dll at compile time.
+    // GUID 6BA435DD-... is the only GUID embedded in Autodesk.Forge.DesignAutomation.Inventor.Utils.dll
+    // and matches the IApplicationAddInServer dispinterface IID from the Inventor type library.
+    [Guid("6BA435DD-BBD6-11D4-8DE6-0010B541CAA8")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
     [ComVisible(true)]
-    public class PluginServer
+    public interface IApplicationAddInServer
     {
-        public object? Automation { get; private set; }
+        void Activate(object addInSiteObject, bool firstTime);
+        void Deactivate();
+        void ExecuteCommand(int commandID);
+        object Automation { get; }
+    }
+
+    [Guid("00b94922-a4b5-4867-98bc-4e9418b04cfe")]
+    [ClassInterface(ClassInterfaceType.None)]  // expose ONLY IApplicationAddInServer
+    [ComVisible(true)]
+    public class PluginServer : IApplicationAddInServer
+    {
+        public object Automation { get; private set; }
 
         public void Activate(object addInSiteObject, bool firstTime)
         {
@@ -40,6 +52,6 @@ namespace InventorBOMExtractor
             GC.WaitForPendingFinalizers();
         }
 
-        public void ExecuteCommand(int CommandID) { }
+        public void ExecuteCommand(int commandID) { }
     }
 }
