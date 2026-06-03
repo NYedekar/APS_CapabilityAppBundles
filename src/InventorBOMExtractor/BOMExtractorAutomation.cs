@@ -11,15 +11,18 @@ namespace InventorBOMExtractor
 {
     // All Inventor API calls are late-bound via dynamic (IDispatch).
     // No autodesk.inventor.interop.dll required at compile time.
+    // AutoDispatch: pure IDispatch interface — no type library generation (AutoDual TLB
+    // generation can silently drop methods with dynamic/object parameters).
     [ComVisible(true)]
-    [ClassInterface(ClassInterfaceType.AutoDual)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
     public class BOMExtractorAutomation
     {
         // No server reference needed — all BOM extraction works directly from the doc argument.
         public BOMExtractorAutomation() { }
 
-        // Called by Inventor DA when no arguments map is provided.
-        public void Run(dynamic doc)
+        // Called by Inventor DA after Activate(). Parameter type must be object (not dynamic)
+        // so the ClassInterface IDispatch correctly exposes Run via GetIDsOfNames.
+        public void Run(object doc)
         {
             // SMOKE STUB: prove Run() is called before attempting any Inventor API calls.
             // If result.json appears in output with smoke=true, Run() works end-to-end.
@@ -43,11 +46,12 @@ namespace InventorBOMExtractor
             {
                 using (new HeartBeat())
                 {
-                    report.Source = (string)doc.FullFileName;
+                    dynamic dynDoc = doc;
+                    report.Source = (string)dynDoc.FullFileName;
                     Trace.TraceInformation("[InventorBOMExtractor] Run — doc={0}", report.Source);
 
                     // DocumentTypeEnum.kAssemblyDocumentObject == 12292 (0x3004)
-                    int docType = (int)doc.DocumentType;
+                    int docType = (int)dynDoc.DocumentType;
                     if (docType != 12292)
                     {
                         report.Errors.Add($"Input is not an assembly (.iam). DocumentType={docType}");
@@ -56,7 +60,7 @@ namespace InventorBOMExtractor
                     else
                     {
                         int total = 0;
-                        report.TopLevelRows = ExtractBOM(doc, ref total);
+                        report.TopLevelRows = ExtractBOM(dynDoc, ref total);
                         report.TotalComponents = total;
                         Trace.TraceInformation("[InventorBOMExtractor] BOM: {0} top-level, {1} total", report.TopLevelRows.Count, total);
                     }
