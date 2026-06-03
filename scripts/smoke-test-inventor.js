@@ -109,7 +109,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const wiBody = JSON.stringify({
     activityId: `${NICKNAME}.${ACTIVITY_ID}+${ALIAS}`,
     arguments: {
-      inputFile:  { url: inputUrl,  verb: 'get' },
+      inputFile:  { url: inputUrl,  verb: 'get', pathInZip: 'Blade.iam' },
       resultJson: { url: resultUrl, verb: 'put' },
     },
   });

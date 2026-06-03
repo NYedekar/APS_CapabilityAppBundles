@@ -97,9 +97,9 @@ function buildActivityDef(engineId) {
     parameters: {
       inputFile: {
         verb:        'get',
-        description: 'Input Inventor assembly (.iam) or zipped assembly (.zip)',
+        description: 'Zipped Inventor assembly (.zip) — use pathInZip to specify the entry IAM',
         required:    true,
-        localName:   'inputFile.iam',
+        localName:   'inputFile.zip',
       },
       resultJson: {
         verb:        'put',
