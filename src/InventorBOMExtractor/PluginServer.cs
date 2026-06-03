@@ -20,8 +20,10 @@ namespace InventorBOMExtractor
         {
             Trace.TraceInformation("[InventorBOMExtractor] Activate v"
                 + Assembly.GetExecutingAssembly().GetName().Version?.ToString(4));
-            _inventorServer = addInSiteObject.InventorServer;
+            // IApplicationAddInSite.Application returns the InventorServer in DA context.
+            _inventorServer = addInSiteObject.Application;
             Automation = new BOMExtractorAutomation(_inventorServer);
+            Trace.TraceInformation("[InventorBOMExtractor] Automation object created — ready.");
         }
 
         public void Deactivate()
