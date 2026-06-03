@@ -3,29 +3,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Inventor;  // Inventor.ApplicationAddInServer embedded from Inventor.Interop.dll
 
 namespace InventorBOMExtractor
 {
-    // Manually declare IApplicationAddInServer so InventorCoreConsole can find the plugin
-    // via QI without needing Autodesk.Inventor.Interop.dll at compile time.
-    // IID extracted from UpdateIPTParam.dll (official Inventor DA sample) by parsing the
-    // .NET metadata TypeDef[4]=Inventor.ApplicationAddInServer CustomAttribute blob.
-    [ComImport]  // [TypeIdentifier] only works for COM-imported types; CLR rejects equivalence unless tdComImport is set
-    [Guid("E3571293-DB40-11D2-B783-0060B0F159EF")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
-    [TypeIdentifier]
-    public interface IApplicationAddInServer
-    {
-        void Activate(object addInSiteObject, bool firstTime);
-        void Deactivate();
-        void ExecuteCommand(int commandID);
-        object? Automation { get; }
-    }
-
     [Guid("00b94922-a4b5-4867-98bc-4e9418b04cfe")]
-    [ClassInterface(ClassInterfaceType.None)]  // expose ONLY IApplicationAddInServer
+    [ClassInterface(ClassInterfaceType.None)]
     [ComVisible(true)]
-    public class PluginServer : IApplicationAddInServer
+    public class PluginServer : ApplicationAddInServer
     {
         public object? Automation { get; private set; }
 

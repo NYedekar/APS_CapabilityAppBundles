@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/InventorBOMExtractor/**'
       - 'bundle/InventorBOMExtractor.bundle/**'
+      - 'lib/Inventor/**'
       - 'scripts/publish-inventor-appbundle.js'
       - 'scripts/publish-inventor-activity.js'
       - 'scripts/smoke-test-inventor.js'
@@ -36,8 +37,18 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      # No autodesk.inventor.interop.dll needed — all Inventor calls are
-      # made via dynamic (IDispatch late binding). Compiles anywhere.
+      # Compile the minimal Inventor interop IL assembly.
+      # This produces Inventor.Interop.dll which the csproj embeds via EmbedInteropTypes=True.
+      # The 'import' keyword in the IL sets tdComImport, enabling CLR type-equivalence and
+      # correct CCW QI support — without this, Inventor returns E_NOINTERFACE on the plugin.
+      - name: Compile Inventor interop IL
+        shell: pwsh
+        run: |
+          $ilasm = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ilasm.exe"
+          & $ilasm /dll /quiet /output:"src\InventorBOMExtractor\Inventor.Interop.dll" "lib\Inventor\Inventor.Interop.il"
+          if ($LASTEXITCODE -ne 0) { Write-Error "ilasm failed"; exit 1 }
+          Write-Host "✅ Inventor.Interop.dll compiled"
+
       - name: Build InventorBOMExtractor.dll
         run: |
           dotnet publish src/InventorBOMExtractor/InventorBOMExtractor.csproj `

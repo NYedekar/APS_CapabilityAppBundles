@@ -17,6 +17,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Inventor.Interop.dll is compiled from lib/Inventor/Inventor.Interop.il by the CI step
+      "Compile Inventor interop IL". EmbedInteropTypes=True embeds Inventor.ApplicationAddInServer
+      with tdComImport into our assembly, enabling the CLR CCW to respond to QI from Inventor.
+      Private=False: the DLL is not copied to output (it's embedded, not needed at runtime).
+    -->
+    <Reference Include="Inventor.Interop">
+      <HintPath>Inventor.Interop.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- DA keepalive utility (HeartBeat) -->
     <PackageReference Include="Autodesk.Forge.DesignAutomation.Inventor.Utils" Version="2.0.1" />
     <!-- JSON output — no in-box JSON on net48 -->
