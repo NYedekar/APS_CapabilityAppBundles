@@ -66,7 +66,10 @@ async function resolveEngineId(token) {
   console.log('\n🔍 Auto-detecting latest Inventor engine...');
   let allEngines = [];
   let nextPage = `/da/us-east/v3/engines?page[limit]=100`;
-  while (nextPage) {
+  let pageCount = 0;
+  const MAX_PAGES = 10;
+  while (nextPage && pageCount < MAX_PAGES) {
+    pageCount++;
     const res = await request({
       hostname: 'developer.api.autodesk.com',
       path:     nextPage,
@@ -74,11 +77,16 @@ async function resolveEngineId(token) {
       headers:  { 'Authorization': `Bearer ${token}` },
     });
     if (res.status !== 200) throw new Error(`Engine list failed HTTP ${res.status}: ${JSON.stringify(res.body)}`);
-    allEngines = allEngines.concat(res.body.data || []);
+    const page = res.body.data || [];
+    allEngines = allEngines.concat(page);
+    // Stop if this page has Inventor engines already (they're sorted, no need to scan all)
+    const hasInventor = page.some(e => /^Autodesk\.Inventor\+/.test(e));
+    if (hasInventor && !res.body.paginationToken) { nextPage = null; break; }
     nextPage = res.body.paginationToken
-      ? `/da/us-east/v3/engines?page[limit]=100&page[cursor]=${res.body.paginationToken}`
+      ? `/da/us-east/v3/engines?page[limit]=100&page[cursor]=${encodeURIComponent(res.body.paginationToken)}`
       : null;
   }
+  if (pageCount >= MAX_PAGES) console.warn(`   ⚠️  Hit ${MAX_PAGES}-page cap during engine listing.`);
 
   // Engine ID format: Autodesk.Inventor+<year>  e.g. Autodesk.Inventor+2025
   const invEngines = allEngines

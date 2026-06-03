@@ -18,9 +18,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUNDLE_NAME: "InventorBOMExtractor"
-  ACTIVITY_ID: "ExtractInventorBOM"
-  ALIAS:       "prod"
+  BUNDLE_NAME:        "InventorBOMExtractor"
+  ACTIVITY_ID:        "ExtractInventorBOM"
+  ALIAS:              "prod"
+  ENGINE_VERSION:     "2025"
 
 jobs:
   build-and-publish:
@@ -85,6 +86,7 @@ jobs:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
           APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
           APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          ENGINE_VERSION:    ${{ env.ENGINE_VERSION }}
         run: node scripts/publish-inventor-appbundle.js
         shell: bash
 
