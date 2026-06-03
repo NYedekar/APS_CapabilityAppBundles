@@ -25,6 +25,16 @@
 .assembly Inventor.Interop
 {
   .ver 1:0:0:0
+
+  // [assembly: Guid("D98A091D-3A0F-4C3E-B36E-61F62068D488")]
+  // Required by CS1747: EmbedInteropTypes needs a typelib GUID on the assembly.
+  .custom instance void [mscorlib]System.Runtime.InteropServices.GuidAttribute::.ctor(string)
+       = ( 01 00 24 44 39 38 41 30 39 31 44 2D 33 41 30 46 2D 34 43 33 45 2D 42 33 36 45 2D 36 31 46 36 32 30 36 38 44 34 38 38 00 00 )
+
+  // [assembly: ImportedFromTypeLib("Inventor")]
+  // Required by CS1759: EmbedInteropTypes needs ImportedFromTypeLib or PrimaryInteropAssembly.
+  .custom instance void [mscorlib]System.Runtime.InteropServices.ImportedFromTypeLibAttribute::.ctor(string)
+       = ( 01 00 08 49 6E 76 65 6E 74 6F 72 00 00 )
 }
 
 .module Inventor.Interop.dll
