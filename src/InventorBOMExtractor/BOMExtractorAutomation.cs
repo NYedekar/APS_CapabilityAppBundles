@@ -15,12 +15,8 @@ namespace InventorBOMExtractor
     [ClassInterface(ClassInterfaceType.AutoDual)]
     public class BOMExtractorAutomation
     {
-        private readonly dynamic _server;
-
-        public BOMExtractorAutomation(dynamic inventorServer)
-        {
-            _server = inventorServer;
-        }
+        // No server reference needed — all BOM extraction works directly from the doc argument.
+        public BOMExtractorAutomation() { }
 
         // Called by Inventor DA when no arguments map is provided.
         public void Run(dynamic doc)
