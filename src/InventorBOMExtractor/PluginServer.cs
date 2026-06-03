@@ -8,9 +8,9 @@ namespace InventorBOMExtractor
 {
     // Manually declare IApplicationAddInServer so InventorCoreConsole can find the plugin
     // via QI without needing Autodesk.Inventor.Interop.dll at compile time.
-    // GUID 6BA435DD-... is the only GUID embedded in Autodesk.Forge.DesignAutomation.Inventor.Utils.dll
-    // and matches the IApplicationAddInServer dispinterface IID from the Inventor type library.
-    [Guid("6BA435DD-BBD6-11D4-8DE6-0010B541CAA8")]
+    // IID extracted from UpdateIPTParam.dll (official Inventor DA sample) by parsing the
+    // .NET metadata TypeDef[4]=Inventor.ApplicationAddInServer CustomAttribute blob.
+    [Guid("E3571299-DB40-11D2-B783-0060B0F159EF")]
     [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
     [ComVisible(true)]
     public interface IApplicationAddInServer
