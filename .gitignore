@@ -4,6 +4,8 @@ obj/
 .vs/
 *.zip
 *.nupkg
+# Allow committed test fixture zips
+!test/**/*.zip
 bundle/RevitExtractor.bundle/Contents/*.dll
 bundle/RevitExtractor.bundle/Contents/*.pdb
 
@@ -16,3 +18,4 @@ bundle/RevitPDFExport.bundle/Contents/*.dll
 bundle/RevitPDFExport.bundle/Contents/*.pdb
 *.zip
 *.nupkg
+!test/**/*.zip
