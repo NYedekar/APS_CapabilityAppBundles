@@ -67,7 +67,22 @@ namespace InventorBOMExtractor
             bom.StructuredViewEnabled = true;
             bom.StructuredViewFirstLevelOnly = false;
             dynamic views = bom.BOMViews;
-            dynamic view = views["Structured"];
+
+            // COM collections expose Item() as the default member; the C# dynamic [..] indexer
+            // does NOT reliably bind to it (throws E_INVALIDARG). Use explicit .Item(...).
+            // Prefer the named "Structured" view; fall back to scanning by index.
+            dynamic view = null;
+            try { view = views.Item("Structured"); }
+            catch
+            {
+                int count = (int)views.Count;
+                for (int i = 1; i <= count; i++)
+                {
+                    dynamic v = views.Item(i);
+                    if (string.Equals((string)v.Title, "Structured", StringComparison.OrdinalIgnoreCase))
+                    { view = v; break; }
+                }
+            }
             if (view == null) return rows;
             WalkRows(view.BOMRows, rows, ref total);
             return rows;
@@ -85,11 +100,12 @@ namespace InventorBOMExtractor
                 };
                 try
                 {
-                    dynamic compDef = row.ComponentDefinitions[1];
+                    // .Item(...) not [..] — COM default-member binding (see ExtractBOM note).
+                    dynamic compDef = row.ComponentDefinitions.Item(1);
                     dynamic compDoc = compDef.Document;
                     entry.IsAssembly = (int)compDoc.DocumentType == kAssemblyDocumentObject;
                     dynamic propSets = compDoc.PropertySets;
-                    dynamic trackingSet = propSets["Design Tracking Properties"];
+                    dynamic trackingSet = propSets.Item("Design Tracking Properties");
                     entry.PartNumber  = SafeProp(trackingSet, "Part Number");
                     entry.Description = SafeProp(trackingSet, "Description");
                     entry.Material    = SafeProp(trackingSet, "Material");
@@ -111,7 +127,7 @@ namespace InventorBOMExtractor
 
         private static string SafeProp(dynamic propSet, string name)
         {
-            try { return propSet[name].Value?.ToString() ?? string.Empty; }
+            try { return propSet.Item(name).Value?.ToString() ?? string.Empty; }
             catch { return string.Empty; }
         }
 
