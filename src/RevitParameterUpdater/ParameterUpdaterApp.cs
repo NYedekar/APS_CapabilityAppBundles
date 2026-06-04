@@ -514,25 +514,70 @@ namespace RevitParameterUpdater
                 return res;
             }
 
-            // Both paths failed — report the most useful error
+            // ── 4c. Fallback: FamilySymbol type parameter ─────────────────────
+            // Reaches type-level parameters not directly on the instance
+            // (door panel width, window frame, curtain panel thickness, etc.).
+            if (TryApplyToFamilyType(elem, req.Parameter, req.NewValue,
+                    out string ftOld, out string ftNew, out string ftReason))
+            {
+                res.OldValue = ftOld;
+                res.NewValue = ftNew;
+                res.Status   = "applied";
+                Console.WriteLine($"[RevitParameterUpdater] applied (family type): elem={res.ElementId} param='{req.Parameter}' '{ftOld}' → '{ftNew}'");
+                return res;
+            }
+
+            // All three paths failed — report the most useful error
             res.Status = "error";
             if (param == null)
-                res.Reason = string.IsNullOrEmpty(csReason)
-                    ? $"parameter '{req.Parameter}' not found on element {res.ElementId}"
-                    : $"'{req.Parameter}' not found as a Revit parameter; compound-structure fallback: {csReason}";
+            {
+                var details = new List<string>();
+                if (!string.IsNullOrEmpty(csReason)) details.Add($"compound: {csReason}");
+                if (!string.IsNullOrEmpty(ftReason)) details.Add($"family type: {ftReason}");
+                res.Reason = details.Count > 0
+                    ? $"'{req.Parameter}' not found. {string.Join(" | ", details)}"
+                    : $"parameter '{req.Parameter}' not found on element {res.ElementId} (tried instance, compound structure, family type)";
+            }
             else
-                res.Reason = string.IsNullOrEmpty(csReason)
-                    ? $"parameter '{req.Parameter}' is read-only on element {res.ElementId}"
-                    : $"'{req.Parameter}' is read-only; compound-structure fallback: {csReason}";
+            {
+                var details = new List<string>();
+                if (!string.IsNullOrEmpty(csReason)) details.Add($"compound: {csReason}");
+                if (!string.IsNullOrEmpty(ftReason)) details.Add($"family type: {ftReason}");
+                res.Reason = $"parameter '{req.Parameter}' is read-only on element {res.ElementId}" +
+                             (details.Count > 0 ? $"; {string.Join(" | ", details)}" : "");
+            }
             Console.WriteLine($"[RevitParameterUpdater] {res.Status}: {res.Reason}");
             return res;
         }
 
+        // Maps layer-function keywords (case-insensitive substring match on param name) to
+        // Revit MaterialFunctionAssignment values. More-specific terms listed first so
+        // "Finish 1" matches before the bare "Finish" catch-all.
+        private static readonly (string keyword, MaterialFunctionAssignment func)[] s_layerFuncKeywords =
+        {
+            ("finish 1",    MaterialFunctionAssignment.Finish1),
+            ("finish1",     MaterialFunctionAssignment.Finish1),
+            ("finish 2",    MaterialFunctionAssignment.Finish2),
+            ("finish2",     MaterialFunctionAssignment.Finish2),
+            ("substrate 1", MaterialFunctionAssignment.Substrate1),
+            ("substrate1",  MaterialFunctionAssignment.Substrate1),
+            ("substrate 2", MaterialFunctionAssignment.Substrate2),
+            ("substrate2",  MaterialFunctionAssignment.Substrate2),
+            ("structural",  MaterialFunctionAssignment.Structure),
+            ("structure",   MaterialFunctionAssignment.Structure),
+            ("membrane",    MaterialFunctionAssignment.Membrane),
+            ("thermal",     MaterialFunctionAssignment.ThermalOrAir),
+            ("substrate",   MaterialFunctionAssignment.Substrate1),
+            ("finish",      MaterialFunctionAssignment.Finish1),
+            ("air",         MaterialFunctionAssignment.ThermalOrAir),
+        };
+
         // ── Compound structure path ───────────────────────────────────────────
-        // Supports: "Thickness", "Layer N Thickness", "Layer N Width" (1-indexed N).
-        // For single-layer types, "Thickness" targets the only layer.
-        // For multi-layer types, "Thickness" targets the structural layer if unique;
-        // otherwise returns an informative error listing available layers.
+        // Supports: "Thickness", "Layer N Thickness", "Layer N Width" (1-indexed N),
+        // and function-keyword forms: "Structural Layer Thickness",
+        // "Finish Layer Thickness", "Substrate Layer Thickness", "Membrane Thickness", etc.
+        // For single-layer types, any of the above targets the only layer.
+        // For multi-layer types without an N or keyword, falls back to the structural layer.
 
         private bool TryApplyToCompoundStructure(Element elem, string paramName, string newValue,
             out string oldValue, out string newValueResult, out string reason)
@@ -571,10 +616,24 @@ namespace RevitParameterUpdater
             }
             else
             {
-                // Multi-layer: prefer the structural layer
+                // Multi-layer: check for a function keyword in the param name first
+                // (e.g. "Structural Layer Thickness" → Structure, "Finish Layer" → Finish1).
+                // Falls back to the structural layer when no keyword matches.
+                string paramLower = paramName.ToLowerInvariant();
+                MaterialFunctionAssignment? targetFunc = null;
+                foreach (var pair in s_layerFuncKeywords)
+                {
+                    if (paramLower.Contains(pair.keyword))
+                    {
+                        targetFunc = pair.func;
+                        break;
+                    }
+                }
+
+                var funcToSearch = targetFunc ?? MaterialFunctionAssignment.Structure;
                 for (int i = 0; i < layerCount; i++)
                 {
-                    if (cs.GetLayerFunction(i) == MaterialFunctionAssignment.Structure)
+                    if (cs.GetLayerFunction(i) == funcToSearch)
                     {
                         targetIdx = i;
                         break;
@@ -585,8 +644,12 @@ namespace RevitParameterUpdater
                     var descs = new List<string>();
                     for (int i = 0; i < layerCount; i++)
                         descs.Add($"Layer {i + 1} ({cs.GetLayerFunction(i)}, {cs.GetLayerWidth(i) * 304.8:F1} mm)");
-                    reason = $"Multi-layer compound type — use 'Layer N Thickness' to target a specific layer. " +
-                             $"Available: {string.Join("; ", descs)}";
+                    string hint = targetFunc.HasValue
+                        ? $"No layer with function '{funcToSearch}' found."
+                        : "No structural layer found — use an explicit keyword.";
+                    reason = $"{hint} Use 'Layer N Thickness' (1-indexed) or a function keyword " +
+                             $"('Structural', 'Finish', 'Finish 1', 'Finish 2', 'Substrate', 'Membrane', 'Thermal'). " +
+                             $"Available layers: {string.Join("; ", descs)}";
                     return false;
                 }
             }
@@ -653,6 +716,42 @@ namespace RevitParameterUpdater
                 feet = num / 304.8; return true;
             }
             return false;
+        }
+
+        // ── FamilySymbol type parameter path ─────────────────────────────────
+        // Edits a type-level parameter on the element's FamilySymbol.
+        // This reaches parameters that live on the family type rather than the instance —
+        // e.g. door panel width, window height constraint, curtain panel thickness,
+        // fixture model depth. Editing the type affects ALL instances of that type,
+        // so the result is written back to the type in the model.
+
+        private bool TryApplyToFamilyType(Element elem, string paramName, string newValue,
+            out string oldValue, out string newValueResult, out string reason)
+        {
+            oldValue = ""; newValueResult = ""; reason = "";
+
+            var fi = elem as FamilyInstance;
+            if (fi == null) return false;
+
+            FamilySymbol? symbol = fi.Symbol;
+            if (symbol == null) { reason = "FamilyInstance has no associated FamilySymbol"; return false; }
+
+            Parameter? param = symbol.LookupParameter(paramName);
+            if (param == null)
+            {
+                reason = $"'{paramName}' not found on FamilySymbol '{symbol.Name}' (family: '{symbol.FamilyName}')";
+                return false;
+            }
+            if (param.IsReadOnly)
+            {
+                reason = $"'{paramName}' is read-only on FamilySymbol '{symbol.Name}'";
+                return false;
+            }
+
+            oldValue = GetParamValue(param);
+            if (!SetParamValue(param, newValue, out reason)) return false;
+            newValueResult = GetParamValue(param);
+            return true;
         }
 
         // ── Element lookup ────────────────────────────────────────────────────
