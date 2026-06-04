@@ -720,7 +720,8 @@ namespace RevitParameterUpdater
             catch { return ""; }
         }
 
-        private static bool SetParamValue(Parameter p, string value, out string reason)
+        // Instance method (not static) so it can call ResolveElementIdByName via _doc.
+        private bool SetParamValue(Parameter p, string value, out string reason)
         {
             reason = "";
             if (p.IsReadOnly) { reason = "parameter is read-only"; return false; }
@@ -753,9 +754,16 @@ namespace RevitParameterUpdater
                         return false;
 
                     case StorageType.ElementId:
+                        // Try numeric first (viewer sometimes sends raw ElementId integer).
                         if (long.TryParse(value, out long eid))
                         { p.Set(new ElementId(eid)); return true; }
-                        reason = $"cannot parse '{value}' as an ElementId (expected numeric)";
+                        // Resolve by name: Material → Level → Phase → broad fallback.
+                        // Covers cases where the viewer sends a display name
+                        // (e.g. "Wood - Cherry" for a material, "Level 1" for a base level).
+                        var resolved = ResolveElementIdByName(value);
+                        if (resolved != null) { p.Set(resolved.Id); return true; }
+                        reason = $"cannot resolve '{value}' as an ElementId — expected a numeric ID " +
+                                 $"or a valid element name (Material, Level, Phase, or other element in this model)";
                         return false;
 
                     default:
@@ -768,6 +776,36 @@ namespace RevitParameterUpdater
                 reason = ex.Message;
                 return false;
             }
+        }
+
+        // Resolve an element by display name for ElementId parameters.
+        // Searches high-frequency types first (Material, Level, Phase) then falls back
+        // to a broad sweep across all instances then element types.
+        private Element? ResolveElementIdByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+
+            // Priority types — cover the vast majority of named ElementId parameters
+            Type[] priorityTypes = { typeof(Material), typeof(Level), typeof(Phase) };
+            foreach (var t in priorityTypes)
+            {
+                var hit = new FilteredElementCollector(_doc)
+                    .OfClass(t)
+                    .FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (hit != null) return hit;
+            }
+
+            // Broad fallback: instances first (rooms, grids, etc.), then element types
+            var inst = new FilteredElementCollector(_doc)
+                .WhereElementIsNotElementType()
+                .FirstOrDefault(e => !string.IsNullOrEmpty(e.Name) &&
+                                     e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (inst != null) return inst;
+
+            return new FilteredElementCollector(_doc)
+                .WhereElementIsElementType()
+                .FirstOrDefault(e => !string.IsNullOrEmpty(e.Name) &&
+                                     e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
     }
 }
