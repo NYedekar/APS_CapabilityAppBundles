@@ -624,25 +624,25 @@ namespace RevitParameterUpdater
             double num;
             if (value.EndsWith("mm", StringComparison.OrdinalIgnoreCase))
             {
-                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                if (!double.TryParse(value.Substring(0, value.Length - 2).Trim(), System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
                 feet = num / 304.8; return true;
             }
             if (value.EndsWith("cm", StringComparison.OrdinalIgnoreCase))
             {
-                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                if (!double.TryParse(value.Substring(0, value.Length - 2).Trim(), System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
                 feet = num / 30.48; return true;
             }
             if (value.EndsWith("ft", StringComparison.OrdinalIgnoreCase))
             {
-                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                if (!double.TryParse(value.Substring(0, value.Length - 2).Trim(), System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
                 feet = num; return true;
             }
             if (value.EndsWith("'"))
             {
-                if (!double.TryParse(value[..^1].Trim(), System.Globalization.NumberStyles.Any,
+                if (!double.TryParse(value.Substring(0, value.Length - 1).Trim(), System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
                 feet = num; return true;
             }
