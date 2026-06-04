@@ -50,7 +50,7 @@ namespace InventorBOMExtractor
                 else
                 {
                     int total = 0;
-                    report.TopLevelRows = ExtractBOM(d, ref total);
+                    report.TopLevelRows = ExtractBOM(d, report, ref total);
                     report.TotalComponents = total;
                 }
             }
@@ -64,7 +64,7 @@ namespace InventorBOMExtractor
             }
         }
 
-        private List<BOMRow> ExtractBOM(dynamic asmDoc, ref int total)
+        private List<BOMRow> ExtractBOM(dynamic asmDoc, BOMReport report, ref int total)
         {
             var rows = new List<BOMRow>();
             _stage = "asmDoc.ComponentDefinition";
@@ -76,25 +76,25 @@ namespace InventorBOMExtractor
             _stage = "bom.BOMViews";
             dynamic views = bom.BOMViews;
 
-            // COM collections expose Item() as the default member; the C# dynamic [..] indexer
-            // does NOT reliably bind to it (throws E_INVALIDARG). Use explicit .Item(...).
-            // Prefer the named "Structured" view; fall back to scanning by index.
+            // Late-bound COM: passing a managed string to Item(VARIANT) via `dynamic` does NOT
+            // marshal correctly (E_INVALIDARG). Iterate by integer index and match on Title.
+            _stage = "views.Count";
+            int count = (int)views.Count;
+            report.Errors.Add($"DIAG: BOMViews.Count={count}");
             dynamic view = null;
-            _stage = "views.Item(\"Structured\")";
-            try { view = views.Item("Structured"); }
-            catch
+            for (int i = 1; i <= count; i++)
             {
-                _stage = "views.Count";
-                int count = (int)views.Count;
-                for (int i = 1; i <= count; i++)
-                {
-                    _stage = $"views.Item({i})";
-                    dynamic v = views.Item(i);
-                    _stage = $"views.Item({i}).Title";
-                    if (string.Equals((string)v.Title, "Structured", StringComparison.OrdinalIgnoreCase))
-                    { view = v; break; }
-                }
+                _stage = $"views.Item({i})";
+                dynamic v = views.Item(i);
+                _stage = $"views.Item({i}).Title";
+                string title;
+                try { title = (string)v.Title; } catch { title = "(no Title)"; }
+                report.Errors.Add($"DIAG: BOMView[{i}].Title='{title}'");
+                if (view == null && title.IndexOf("Structured", StringComparison.OrdinalIgnoreCase) >= 0)
+                    view = v;
             }
+            // Fallback: first view if no title matched (en-US structured view is usually index 1).
+            if (view == null && count >= 1) { _stage = "views.Item(1) fallback"; view = views.Item(1); }
             if (view == null) return rows;
             _stage = "view.BOMRows";
             WalkRows(view.BOMRows, rows, ref total);
