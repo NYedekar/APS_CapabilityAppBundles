@@ -51,40 +51,45 @@
   .custom instance void [mscorlib]System.Runtime.InteropServices.InterfaceTypeAttribute::.ctor(int16)
        = ( 01 00 02 00 00 00 )
 
-  // void Activate(object addInSiteObject, bool firstTime)  [DispId(1)]
-  // ImplFlags=0x1083 (runtime|internalcall|preservesig) — matches UpdateIPTParam.dll exactly
+  // void Activate(object addInSiteObject, bool firstTime)  [DispId(0x03001201)]
+  // DISPIDs are Inventor's REAL values (extracted from UpdateIPTParam.dll), NOT 1/2/3/4.
+  // IApplicationAddInServer is InterfaceIsIDispatch, so InventorCoreConsole calls every
+  // member by these exact DISPIDs. Wrong DISPIDs => get_Automation returns
+  // DISP_E_MEMBERNOTFOUND => no automation object => Run never reached.
+  // ImplFlags=0x1083 (runtime|internalcall|preservesig) — matches UpdateIPTParam.dll exactly.
   .method public hidebysig newslot virtual abstract
           instance void  Activate([in] object addInSiteObject,
                                    [in] bool firstTime) runtime managed internalcall preservesig
   {
+    // DispId(0x03001201)  blob: 01 00 <01 12 00 03> 00 00
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
-         = ( 01 00 01 00 00 00 00 00 )
+         = ( 01 00 01 12 00 03 00 00 )
   }
 
-  // void Deactivate()  [DispId(2)]
+  // void Deactivate()  [DispId(0x03001202)]
   .method public hidebysig newslot virtual abstract
           instance void  Deactivate() runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
-         = ( 01 00 02 00 00 00 00 00 )
+         = ( 01 00 02 12 00 03 00 00 )
   }
 
-  // void ExecuteCommand(int commandID)  [DispId(3)]
+  // void ExecuteCommand(int commandID)  [DispId(0x03001203)]
   .method public hidebysig newslot virtual abstract
           instance void  ExecuteCommand([in] int32 commandID) runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
-         = ( 01 00 03 00 00 00 00 00 )
+         = ( 01 00 03 12 00 03 00 00 )
   }
 
-  // object get_Automation()  [DispId(4)]
+  // object get_Automation()  [DispId(0x03001204)]
   // preservesig is critical: without it the CCW treats object return as HRESULT+outparam,
   // discarding the BOMExtractorAutomation instance and returning null to InventorCoreConsole.
   .method public hidebysig newslot specialname virtual abstract
           instance object  get_Automation() runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
-         = ( 01 00 04 00 00 00 00 00 )
+         = ( 01 00 04 12 00 03 00 00 )
   }
 
   .property instance object Automation()

@@ -16,7 +16,7 @@ namespace InventorBOMExtractor
     public class PluginServer : ApplicationAddInServer
     {
         // Typed as dynamic to match UpdateIPTParam.PluginServer.Automation pattern.
-        public dynamic Automation { get; private set; }
+        public dynamic Automation { get; private set; } = null!;
 
         public void Activate(object addInSiteObject, bool firstTime)
         {
