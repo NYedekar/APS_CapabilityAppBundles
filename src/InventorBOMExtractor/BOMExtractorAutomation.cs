@@ -72,7 +72,10 @@ namespace InventorBOMExtractor
             }
             catch (Exception ex)
             {
-                report.Errors.Add($"[stage={_stage}] {ex.GetType().Name}: {ex.Message}");
+                // InvokeMember wraps COM errors in TargetInvocationException — unwrap to the root.
+                var inner = ex;
+                while (inner.InnerException != null) inner = inner.InnerException;
+                report.Errors.Add($"[stage={_stage}] {inner.GetType().Name}: {inner.Message} (HRESULT=0x{inner.HResult:X8})");
             }
             finally
             {
