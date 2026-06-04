@@ -465,27 +465,17 @@ namespace RevitParameterUpdater
                 return res;
             }
 
-            // ElementId.Value returns long (compatible with R2026; .IntegerValue was removed in 2024+)
             res.ElementId   = elem.Id.Value.ToString();
             res.ElementName = !string.IsNullOrEmpty(elem.Name) ? elem.Name : req.ElementName;
 
             // ── 2. Find parameter ─────────────────────────────────────────
             Parameter? param = elem.LookupParameter(req.Parameter);
-            if (param == null)
-            {
-                res.Status = "error";
-                res.Reason = $"parameter '{req.Parameter}' not found on element {res.ElementId}";
-                Console.WriteLine($"[RevitParameterUpdater] {res.Status}: {res.Reason}");
-                return res;
-            }
+            res.OldValue = param != null ? GetParamValue(param) : "";
 
-            res.OldValue = GetParamValue(param);
-
-            // ── 3. Delta check for full_file mode ─────────────────────────
-            if (inputMode == "full_file")
+            // ── 3. Delta check (full_file) ────────────────────────────────
+            if (inputMode == "full_file" && param != null && !param.IsReadOnly)
             {
-                bool same = string.Equals(
-                    res.OldValue.Trim(), req.NewValue.Trim(),
+                bool same = string.Equals(res.OldValue.Trim(), req.NewValue.Trim(),
                     StringComparison.OrdinalIgnoreCase);
                 if (same)
                 {
@@ -495,19 +485,174 @@ namespace RevitParameterUpdater
                 }
             }
 
-            // ── 4. Set value ──────────────────────────────────────────────
-            if (!SetParamValue(param, req.NewValue, out string reason))
+            // ── 4a. Primary path: standard Revit parameter ────────────────
+            if (param != null && !param.IsReadOnly)
             {
-                res.Status = "error";
-                res.Reason = reason;
-                Console.WriteLine($"[RevitParameterUpdater] error on element {res.ElementId} param '{req.Parameter}': {reason}");
+                if (!SetParamValue(param, req.NewValue, out string setReason))
+                {
+                    res.Status = "error";
+                    res.Reason = setReason;
+                    Console.WriteLine($"[RevitParameterUpdater] error on element {res.ElementId} param '{req.Parameter}': {setReason}");
+                    return res;
+                }
+                res.NewValue = GetParamValue(param);
+                res.Status   = "applied";
+                Console.WriteLine($"[RevitParameterUpdater] applied: elem={res.ElementId} param='{req.Parameter}' '{res.OldValue}' → '{res.NewValue}'");
                 return res;
             }
 
-            res.NewValue = GetParamValue(param); // read back the stored value
-            res.Status   = "applied";
-            Console.WriteLine($"[RevitParameterUpdater] applied: elem={res.ElementId} param='{req.Parameter}' '{res.OldValue}' → '{res.NewValue}'");
+            // ── 4b. Fallback: compound structure (walls, roofs, floors, ceilings) ──
+            // Handles thickness/layer-width parameters that are not accessible via
+            // LookupParameter because they live in the type's CompoundStructure.
+            if (TryApplyToCompoundStructure(elem, req.Parameter, req.NewValue,
+                    out string csOld, out string csNew, out string csReason))
+            {
+                res.OldValue = csOld;
+                res.NewValue = csNew;
+                res.Status   = "applied";
+                Console.WriteLine($"[RevitParameterUpdater] applied (compound): elem={res.ElementId} param='{req.Parameter}' '{csOld}' → '{csNew}'");
+                return res;
+            }
+
+            // Both paths failed — report the most useful error
+            res.Status = "error";
+            if (param == null)
+                res.Reason = string.IsNullOrEmpty(csReason)
+                    ? $"parameter '{req.Parameter}' not found on element {res.ElementId}"
+                    : $"'{req.Parameter}' not found as a Revit parameter; compound-structure fallback: {csReason}";
+            else
+                res.Reason = string.IsNullOrEmpty(csReason)
+                    ? $"parameter '{req.Parameter}' is read-only on element {res.ElementId}"
+                    : $"'{req.Parameter}' is read-only; compound-structure fallback: {csReason}";
+            Console.WriteLine($"[RevitParameterUpdater] {res.Status}: {res.Reason}");
             return res;
+        }
+
+        // ── Compound structure path ───────────────────────────────────────────
+        // Supports: "Thickness", "Layer N Thickness", "Layer N Width" (1-indexed N).
+        // For single-layer types, "Thickness" targets the only layer.
+        // For multi-layer types, "Thickness" targets the structural layer if unique;
+        // otherwise returns an informative error listing available layers.
+
+        private bool TryApplyToCompoundStructure(Element elem, string paramName, string newValue,
+            out string oldValue, out string newValueResult, out string reason)
+        {
+            oldValue = ""; newValueResult = ""; reason = "";
+
+            if (elem is not HostObject) return false;
+
+            var type = _doc.GetElement(elem.GetTypeId()) as HostObjAttributes;
+            if (type == null) { reason = "element type is not a compound host type"; return false; }
+
+            CompoundStructure? cs = type.GetCompoundStructure();
+            if (cs == null) { reason = "element type has no compound structure"; return false; }
+
+            int layerCount = cs.LayerCount;
+            if (layerCount == 0) { reason = "compound structure has no layers"; return false; }
+
+            // Determine target layer index
+            int targetIdx = -1;
+            var layerMatch = System.Text.RegularExpressions.Regex.Match(
+                paramName, @"layer\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (layerMatch.Success)
+            {
+                int n = int.Parse(layerMatch.Groups[1].Value) - 1; // 1-indexed → 0-indexed
+                if (n < 0 || n >= layerCount)
+                {
+                    reason = $"Layer {n + 1} out of range — this compound type has {layerCount} layer(s)";
+                    return false;
+                }
+                targetIdx = n;
+            }
+            else if (layerCount == 1)
+            {
+                targetIdx = 0;
+            }
+            else
+            {
+                // Multi-layer: prefer the structural layer
+                for (int i = 0; i < layerCount; i++)
+                {
+                    if (cs.GetLayerFunction(i) == MaterialFunctionAssignment.Structure)
+                    {
+                        targetIdx = i;
+                        break;
+                    }
+                }
+                if (targetIdx < 0)
+                {
+                    var descs = new List<string>();
+                    for (int i = 0; i < layerCount; i++)
+                        descs.Add($"Layer {i + 1} ({cs.GetLayerFunction(i)}, {cs.GetLayerWidth(i) * 304.8:F1} mm)");
+                    reason = $"Multi-layer compound type — use 'Layer N Thickness' to target a specific layer. " +
+                             $"Available: {string.Join("; ", descs)}";
+                    return false;
+                }
+            }
+
+            double oldWidthFeet = cs.GetLayerWidth(targetIdx);
+            oldValue = $"{oldWidthFeet * 304.8:F2} mm";
+
+            if (!TryParseLengthToFeet(newValue, out double newWidthFeet))
+            {
+                reason = $"Cannot parse '{newValue}' as a length. Use formats like '300 mm', '0.984 ft', or a plain number in project mm.";
+                return false;
+            }
+
+            try
+            {
+                cs.SetLayerWidth(targetIdx, newWidthFeet);
+                type.SetCompoundStructure(cs);
+                newValueResult = $"{newWidthFeet * 304.8:F2} mm";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                reason = $"SetCompoundStructure failed: {ex.Message}";
+                return false;
+            }
+        }
+
+        // Parse length strings to decimal feet (Revit internal unit).
+        // Supports: "300 mm", "30 cm", "0.984 ft", "0.984'", or bare number (assumed mm).
+        private static bool TryParseLengthToFeet(string value, out double feet)
+        {
+            feet = 0;
+            value = value.Trim();
+
+            double num;
+            if (value.EndsWith("mm", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
+                feet = num / 304.8; return true;
+            }
+            if (value.EndsWith("cm", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
+                feet = num / 30.48; return true;
+            }
+            if (value.EndsWith("ft", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(value[..^2].Trim(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
+                feet = num; return true;
+            }
+            if (value.EndsWith("'"))
+            {
+                if (!double.TryParse(value[..^1].Trim(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out num)) return false;
+                feet = num; return true;
+            }
+            // Bare number — assume project units are mm (most Revit projects outside the US)
+            if (double.TryParse(value, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out num))
+            {
+                feet = num / 304.8; return true;
+            }
+            return false;
         }
 
         // ── Element lookup ────────────────────────────────────────────────────
