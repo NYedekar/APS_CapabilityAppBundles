@@ -3,23 +3,23 @@ using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace InventorBOMExtractor
 {
-    // Matches UpdateIPTParam.SampleAutomation pattern exactly:
-    //   [ComVisible(true)] only — no [ClassInterface], no [Guid], no explicit IDispatch interface.
-    // Default ClassInterface = AutoDispatch, which is how the official sample exposes Run.
+    // Matches UpdateIPTParam.SampleAutomation pattern: [ComVisible(true)] only
+    // (default AutoDispatch class interface). InventorCoreConsole calls Run(doc) on it.
     [ComVisible(true)]
     public class BOMExtractorAutomation
     {
-        // Inventor DocumentTypeEnum (verified empirically: a .iam assembly reports 12291):
-        //   kUnknownDocumentObject  = 12289 (0x3001)
-        //   kPartDocumentObject     = 12290 (0x3002)
-        //   kAssemblyDocumentObject = 12291 (0x3003)   <-- assemblies
-        //   kDrawingDocumentObject  = 12292 (0x3004)
+        // Inventor DocumentTypeEnum (verified: a .iam assembly reports 12291):
+        //   kPartDocumentObject = 12290, kAssemblyDocumentObject = 12291, kDrawingDocumentObject = 12292
         private const int kAssemblyDocumentObject = 12291;
+
+        // Set before each COM call so result.json errors pinpoint the failing step.
+        private string _stage = "init";
 
         public BOMExtractorAutomation() { }
 
@@ -29,20 +29,36 @@ namespace InventorBOMExtractor
             RunReal(doc);
         }
 
-        // Set before each COM call so the result.json error pinpoints the exact failing step.
-        private string _stage = "init";
+        // ---- Late-bound COM helpers (Type.InvokeMember) --------------------------------
+        // C# `dynamic` does NOT reliably marshal args to a COM Item(VARIANT) member
+        // (throws E_INVALIDARG). InvokeMember marshals string/int -> VARIANT correctly.
+        private static object Prop(object o, string name)
+            => o.GetType().InvokeMember(name, BindingFlags.GetProperty, null, o, null);
 
-        // Real BOM extraction.
+        private static void SetProp(object o, string name, object val)
+            => o.GetType().InvokeMember(name, BindingFlags.SetProperty, null, o, new[] { val });
+
+        private static object Item(object collection, object index)
+            => collection.GetType().InvokeMember("Item",
+                   BindingFlags.InvokeMethod | BindingFlags.GetProperty, null, collection, new[] { index });
+
+        private static string Str(object o) => o?.ToString() ?? string.Empty;
+
+        private static double ToDouble(object o)
+        {
+            try { return Convert.ToDouble(o); } catch { return 0; }
+        }
+        // --------------------------------------------------------------------------------
+
         private void RunReal(object doc)
         {
             var report = new BOMReport { GeneratedAt = DateTime.UtcNow.ToString("o") };
             try
             {
-                dynamic d = doc;
                 _stage = "doc.FullFileName";
-                report.Source = (string)d.FullFileName;
+                report.Source = Str(Prop(doc, "FullFileName"));
                 _stage = "doc.DocumentType";
-                int docType = (int)d.DocumentType;
+                int docType = (int)Prop(doc, "DocumentType");
                 if (docType != kAssemblyDocumentObject)
                 {
                     report.Errors.Add($"Input is not an assembly (.iam). DocumentType={docType}");
@@ -50,7 +66,7 @@ namespace InventorBOMExtractor
                 else
                 {
                     int total = 0;
-                    report.TopLevelRows = ExtractBOM(d, report, ref total);
+                    report.TopLevelRows = ExtractBOM(doc, ref total);
                     report.TotalComponents = total;
                 }
             }
@@ -64,92 +80,97 @@ namespace InventorBOMExtractor
             }
         }
 
-        private List<BOMRow> ExtractBOM(dynamic asmDoc, BOMReport report, ref int total)
+        private List<BOMRow> ExtractBOM(object asmDoc, ref int total)
         {
             var rows = new List<BOMRow>();
-            _stage = "asmDoc.ComponentDefinition";
-            dynamic compDef = asmDoc.ComponentDefinition;
-            _stage = "compDef.BOM";
-            dynamic bom = compDef.BOM;
-            _stage = "bom.StructuredViewEnabled=true";
-            bom.StructuredViewEnabled = true;
-            _stage = "bom.BOMViews";
-            dynamic views = bom.BOMViews;
-
-            // Late-bound COM: passing a managed string to Item(VARIANT) via `dynamic` does NOT
-            // marshal correctly (E_INVALIDARG). Iterate by integer index and match on Title.
-            _stage = "views.Count";
-            int count = (int)views.Count;
-            report.Errors.Add($"DIAG: BOMViews.Count={count}");
-            dynamic view = null;
-            for (int i = 1; i <= count; i++)
-            {
-                _stage = $"views.Item({i})";
-                dynamic v = views.Item(i);
-                _stage = $"views.Item({i}).Title";
-                string title;
-                try { title = (string)v.Title; } catch { title = "(no Title)"; }
-                report.Errors.Add($"DIAG: BOMView[{i}].Title='{title}'");
-                if (view == null && title.IndexOf("Structured", StringComparison.OrdinalIgnoreCase) >= 0)
-                    view = v;
-            }
-            // Fallback: first view if no title matched (en-US structured view is usually index 1).
-            if (view == null && count >= 1) { _stage = "views.Item(1) fallback"; view = views.Item(1); }
-            if (view == null) return rows;
+            _stage = "ComponentDefinition";
+            object compDef = Prop(asmDoc, "ComponentDefinition");
+            _stage = "BOM";
+            object bom = Prop(compDef, "BOM");
+            _stage = "StructuredViewFirstLevelOnly=false";
+            try { SetProp(bom, "StructuredViewFirstLevelOnly", false); } catch { }
+            _stage = "StructuredViewEnabled=true";
+            SetProp(bom, "StructuredViewEnabled", true);
+            _stage = "BOMViews";
+            object views = Prop(bom, "BOMViews");
+            // BOMViews.Item("Structured") is the documented access; InvokeMember marshals the
+            // string to a VARIANT properly (unlike dynamic).
+            _stage = "BOMViews.Item(\"Structured\")";
+            object view = Item(views, "Structured");
             _stage = "view.BOMRows";
-            WalkRows(view.BOMRows, rows, ref total);
+            object bomRows = Prop(view, "BOMRows");
+            WalkRows(bomRows, rows, ref total);
             return rows;
         }
 
-        private void WalkRows(dynamic rowEnum, List<BOMRow> target, ref int total)
+        private void WalkRows(object bomRows, List<BOMRow> target, ref int total)
         {
-            foreach (dynamic row in rowEnum)
+            _stage = "BOMRows.Count";
+            int count = (int)Prop(bomRows, "Count");
+            for (int i = 1; i <= count; i++)
             {
                 total++;
+                _stage = $"BOMRows.Item({i})";
+                object row = Item(bomRows, i);
+
                 var entry = new BOMRow
                 {
-                    ItemNumber = SafeString(() => (string)row.ItemNumber),
-                    Quantity   = SafeDouble(() => (double)row.ItemQuantity),
+                    ItemNumber = SafeStr(() => Str(Prop(row, "ItemNumber"))),
+                    Quantity   = SafeNum(() => ToDouble(Prop(row, "ItemQuantity"))),
                 };
+
                 try
                 {
-                    // .Item(...) not [..] — COM default-member binding (see ExtractBOM note).
-                    dynamic compDef = row.ComponentDefinitions.Item(1);
-                    dynamic compDoc = compDef.Document;
-                    entry.IsAssembly = (int)compDoc.DocumentType == kAssemblyDocumentObject;
-                    dynamic propSets = compDoc.PropertySets;
-                    dynamic trackingSet = propSets.Item("Design Tracking Properties");
-                    entry.PartNumber  = SafeProp(trackingSet, "Part Number");
-                    entry.Description = SafeProp(trackingSet, "Description");
-                    entry.Material    = SafeProp(trackingSet, "Material");
-                    entry.Mass        = SafeProp(trackingSet, "Mass");
-                    string unit       = SafeProp(trackingSet, "Unit Quantity");
+                    object compDefs = Prop(row, "ComponentDefinitions");
+                    object cd = Item(compDefs, 1);
+
+                    // Virtual components have no Document — read PropertySets off the def itself.
+                    object propHolder = cd;
+                    try { object docObj = Prop(cd, "Document"); if (docObj != null) propHolder = docObj; }
+                    catch { propHolder = cd; }
+
+                    try { entry.IsAssembly = (int)Prop(propHolder, "DocumentType") == kAssemblyDocumentObject; }
+                    catch { }
+
+                    object propSets = Prop(propHolder, "PropertySets");
+                    object dtp = Item(propSets, "Design Tracking Properties");
+                    entry.PartNumber  = PropVal(dtp, "Part Number");
+                    entry.Description = PropVal(dtp, "Description");
+                    entry.Material    = PropVal(dtp, "Material");
+                    string unit       = PropVal(dtp, "Unit Quantity");
                     entry.Unit        = string.IsNullOrWhiteSpace(unit) ? "ea" : unit;
+
+                    // Numeric mass from computed mass properties (not the iProperty string).
+                    try { object mp = Prop(cd, "MassProperties"); entry.Mass = Str(Prop(mp, "Mass")); }
+                    catch { }
                 }
                 catch { }
+
+                // ChildRows can be null (parts-only views / leaf rows).
                 try
                 {
-                    dynamic childRows = row.ChildRows;
+                    object childRows = Prop(row, "ChildRows");
                     if (childRows != null)
                         WalkRows(childRows, entry.ChildRows, ref total);
                 }
                 catch { }
+
                 target.Add(entry);
             }
         }
 
-        private static string SafeProp(dynamic propSet, string name)
+        private static string PropVal(object propSet, string name)
         {
-            try { return propSet.Item(name).Value?.ToString() ?? string.Empty; }
+            try { return Str(Prop(Item(propSet, name), "Value")); }
             catch { return string.Empty; }
         }
 
-        private static string SafeString(Func<string> fn)
+        private static string SafeStr(Func<string> fn)
         {
             try { return fn() ?? string.Empty; } catch { return string.Empty; }
         }
 
-        private static double SafeDouble(Func<double> fn)
+        private static double SafeNum(Func<double> fn)
         {
             try { return fn(); } catch { return 0; }
         }
