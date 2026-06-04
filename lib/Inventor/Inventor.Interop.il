@@ -52,9 +52,10 @@
        = ( 01 00 02 00 00 00 )
 
   // void Activate(object addInSiteObject, bool firstTime)  [DispId(1)]
+  // ImplFlags=0x1083 (runtime|internalcall|preservesig) — matches UpdateIPTParam.dll exactly
   .method public hidebysig newslot virtual abstract
           instance void  Activate([in] object addInSiteObject,
-                                   [in] bool firstTime) runtime internalcall
+                                   [in] bool firstTime) runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
          = ( 01 00 01 00 00 00 00 00 )
@@ -62,7 +63,7 @@
 
   // void Deactivate()  [DispId(2)]
   .method public hidebysig newslot virtual abstract
-          instance void  Deactivate() runtime internalcall
+          instance void  Deactivate() runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
          = ( 01 00 02 00 00 00 00 00 )
@@ -70,15 +71,17 @@
 
   // void ExecuteCommand(int commandID)  [DispId(3)]
   .method public hidebysig newslot virtual abstract
-          instance void  ExecuteCommand([in] int32 commandID) runtime internalcall
+          instance void  ExecuteCommand([in] int32 commandID) runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
          = ( 01 00 03 00 00 00 00 00 )
   }
 
   // object get_Automation()  [DispId(4)]
+  // preservesig is critical: without it the CCW treats object return as HRESULT+outparam,
+  // discarding the BOMExtractorAutomation instance and returning null to InventorCoreConsole.
   .method public hidebysig newslot specialname virtual abstract
-          instance object  get_Automation() runtime internalcall
+          instance object  get_Automation() runtime managed internalcall preservesig
   {
     .custom instance void [mscorlib]System.Runtime.InteropServices.DispIdAttribute::.ctor(int32)
          = ( 01 00 04 00 00 00 00 00 )
