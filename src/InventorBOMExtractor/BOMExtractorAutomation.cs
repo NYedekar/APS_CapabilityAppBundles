@@ -9,73 +9,80 @@ using System.Text;
 
 namespace InventorBOMExtractor
 {
-    // All Inventor API calls are late-bound via dynamic (IDispatch).
-    // No autodesk.inventor.interop.dll required at compile time.
-    // AutoDispatch: pure IDispatch interface — no type library generation (AutoDual TLB
-    // generation can silently drop methods with dynamic/object parameters).
+    // Explicit IDispatch interface for the automation object.
+    // Using an explicit interface (rather than ClassInterface.AutoDispatch) guarantees that
+    // IDispatch.GetIDsOfNames("Run") and "RunWithArguments" resolve correctly. AutoDispatch
+    // auto-generation can silently exclude methods with certain parameter types on net48.
     [ComVisible(true)]
-    [ClassInterface(ClassInterfaceType.AutoDispatch)]
-    public class BOMExtractorAutomation
+    [Guid("A7F8C3D2-E5B1-4F6A-9D3E-2C4B8A7F1E09")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+    public interface IInventorAutomation
+    {
+        [DispId(1)]
+        void Run(object doc);
+
+        [DispId(2)]
+        void RunWithArguments(object doc, object args);
+    }
+
+    // ClassInterfaceType.None: CCW exposes only IInventorAutomation (IDispatch).
+    // No auto-generated class interface — IDispatch is IInventorAutomation directly.
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    public class BOMExtractorAutomation : IInventorAutomation
     {
         // No server reference needed — all BOM extraction works directly from the doc argument.
         public BOMExtractorAutomation() { }
 
-        // Called by Inventor DA after Activate(). Parameter type must be object (not dynamic)
-        // so the ClassInterface IDispatch correctly exposes Run via GetIDsOfNames.
+        public void RunWithArguments(object doc, object args) => Run(doc);
+
+        // SMOKE STUB: proves Run() is reachable from InventorCoreConsole.
+        // Once result.json appears in output with source="smoke-stub", replace with RunReal().
         public void Run(object doc)
         {
-            // SMOKE STUB: prove Run() is called before attempting any Inventor API calls.
-            // If result.json appears in output with smoke=true, Run() works end-to-end.
-            // Remove this stub once confirmed and restore real BOM extraction.
-            File.WriteAllText("activate_debug.txt", "[InventorBOMExtractor] Run() was called at " + DateTime.UtcNow.ToString("o"), new UTF8Encoding(false));
-            var smokeReport = new BOMReport
+            File.WriteAllText("activate_debug.txt",
+                "[InventorBOMExtractor] Run() called at " + DateTime.UtcNow.ToString("o"),
+                new UTF8Encoding(false));
+            var report = new BOMReport
             {
                 GeneratedAt = DateTime.UtcNow.ToString("o"),
                 Source = "smoke-stub",
-                TotalComponents = 0,
-                TopLevelRows = new List<BOMRow>(),
             };
-            smokeReport.Errors.Add("SMOKE_STUB: Run() reached — replace with real BOM logic");
-            WriteResult(smokeReport);
-            Trace.TraceInformation("[InventorBOMExtractor] SMOKE STUB: result.json written. Run() confirmed callable.");
-            return;
-            // ── real BOM extraction below (unreachable until smoke passes) ──
-#pragma warning disable CS0162
+            report.Errors.Add("SMOKE_STUB: Run() reached");
+            WriteResult(report);
+        }
+
+        // Real BOM extraction — not called until smoke stub is confirmed green.
+        private void RunReal(object doc)
+        {
             var report = new BOMReport { GeneratedAt = DateTime.UtcNow.ToString("o") };
             try
             {
                 using (new HeartBeat())
                 {
-                    dynamic dynDoc = doc;
-                    report.Source = (string)dynDoc.FullFileName;
-                    Trace.TraceInformation("[InventorBOMExtractor] Run — doc={0}", report.Source);
-
-                    // DocumentTypeEnum.kAssemblyDocumentObject == 12292 (0x3004)
-                    int docType = (int)dynDoc.DocumentType;
+                    dynamic d = doc;
+                    report.Source = (string)d.FullFileName;
+                    int docType = (int)d.DocumentType;
                     if (docType != 12292)
                     {
                         report.Errors.Add($"Input is not an assembly (.iam). DocumentType={docType}");
-                        Trace.TraceWarning("[InventorBOMExtractor] Not an assembly.");
                     }
                     else
                     {
                         int total = 0;
-                        report.TopLevelRows = ExtractBOM(dynDoc, ref total);
+                        report.TopLevelRows = ExtractBOM(d, ref total);
                         report.TotalComponents = total;
-                        Trace.TraceInformation("[InventorBOMExtractor] BOM: {0} top-level, {1} total", report.TopLevelRows.Count, total);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Trace.TraceError("[InventorBOMExtractor] Exception: {0}", ex);
                 report.Errors.Add(ex.Message);
             }
             finally
             {
                 WriteResult(report);
             }
-#pragma warning restore CS0162
         }
 
         private List<BOMRow> ExtractBOM(dynamic asmDoc, ref int total)
