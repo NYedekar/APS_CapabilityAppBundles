@@ -14,6 +14,13 @@ namespace InventorBOMExtractor
     [ComVisible(true)]
     public class BOMExtractorAutomation
     {
+        // Inventor DocumentTypeEnum (verified empirically: a .iam assembly reports 12291):
+        //   kUnknownDocumentObject  = 12289 (0x3001)
+        //   kPartDocumentObject     = 12290 (0x3002)
+        //   kAssemblyDocumentObject = 12291 (0x3003)   <-- assemblies
+        //   kDrawingDocumentObject  = 12292 (0x3004)
+        private const int kAssemblyDocumentObject = 12291;
+
         public BOMExtractorAutomation() { }
 
         // Entry point invoked by InventorCoreConsole (DISPID 0x03001204 -> Automation -> Run).
@@ -31,7 +38,7 @@ namespace InventorBOMExtractor
                 dynamic d = doc;
                 report.Source = (string)d.FullFileName;
                 int docType = (int)d.DocumentType;
-                if (docType != 12292)
+                if (docType != kAssemblyDocumentObject)
                 {
                     report.Errors.Add($"Input is not an assembly (.iam). DocumentType={docType}");
                 }
@@ -80,7 +87,7 @@ namespace InventorBOMExtractor
                 {
                     dynamic compDef = row.ComponentDefinitions[1];
                     dynamic compDoc = compDef.Document;
-                    entry.IsAssembly = (int)compDoc.DocumentType == 12292;
+                    entry.IsAssembly = (int)compDoc.DocumentType == kAssemblyDocumentObject;
                     dynamic propSets = compDoc.PropertySets;
                     dynamic trackingSet = propSets["Design Tracking Properties"];
                     entry.PartNumber  = SafeProp(trackingSet, "Part Number");
