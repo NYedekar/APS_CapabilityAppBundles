@@ -11,8 +11,8 @@ const CLIENT_SECRET = required('APS_CLIENT_SECRET');
 const NICKNAME      = required('APS_NICKNAME');
 const ACTIVITY_ID   = process.env.SMOKE_ACTIVITY_ID || 'ExtractInventorBOM';
 const ALIAS         = process.env.ALIAS || 'prod';
-// sample-inventor.zip = official Autodesk 2022 "Blower" sample (Blower.iam + 31 sub-assemblies
-// + 38 parts), a real self-contained multi-level assembly for genuine BOM extraction.
+// sample-inventor.zip = BrewMain-Drawing model (brewing-main.iam + 4 sub-assemblies + 41 parts
+// + 20 SquareTube variants), a real self-contained multi-level assembly for BOM extraction.
 const SAMPLE_ZIP    = process.env.SAMPLE_INVENTOR_ZIP || path.join(process.cwd(), 'test', 'inventor', 'sample-inventor.zip');
 const BUCKET_KEY    = (NICKNAME.toLowerCase().replace(/[^a-z0-9]/g, '') + '-smoke').slice(0, 60);
 const BASE          = 'developer.api.autodesk.com';
@@ -110,7 +110,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const wiBody = JSON.stringify({
     activityId: `${NICKNAME}.${ACTIVITY_ID}+${ALIAS}`,
     arguments: {
-      inputFile:  { url: inputUrl,  verb: 'get', pathInZip: 'Blower.iam' },
+      inputFile:  { url: inputUrl,  verb: 'get', pathInZip: 'BrewMain-Drawing/brewing-main.iam' },
       resultJson: { url: resultUrl, verb: 'put' },
     },
   });
