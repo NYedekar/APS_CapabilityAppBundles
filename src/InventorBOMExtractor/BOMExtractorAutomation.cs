@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,20 +16,13 @@ namespace InventorBOMExtractor
     {
         public BOMExtractorAutomation() { }
 
-        // SMOKE STUB: write result.json immediately to prove Run() is callable.
-        // Once CI shows status=success with source="smoke-stub", replace with RunReal().
+        // Entry point invoked by InventorCoreConsole (DISPID 0x03001204 -> Automation -> Run).
         public void Run(object doc)
         {
-            var report = new BOMReport
-            {
-                GeneratedAt = DateTime.UtcNow.ToString("o"),
-                Source = "smoke-stub",
-            };
-            report.Errors.Add("SMOKE_STUB: Run() reached");
-            WriteResult(report);
+            RunReal(doc);
         }
 
-        // Real BOM extraction — separate method, never JIT'd during smoke test.
+        // Real BOM extraction.
         private void RunReal(object doc)
         {
             var report = new BOMReport { GeneratedAt = DateTime.UtcNow.ToString("o") };
@@ -124,9 +118,16 @@ namespace InventorBOMExtractor
             try { return fn(); } catch { return 0; }
         }
 
+        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        {
+            // camelCase: source, generatedAt, totalComponents, topLevelRows, errors, itemNumber, …
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            Formatting = Formatting.Indented,
+        };
+
         private static void WriteResult(BOMReport report)
         {
-            string json = JsonConvert.SerializeObject(report, Formatting.Indented);
+            string json = JsonConvert.SerializeObject(report, JsonSettings);
             File.WriteAllText("result.json", json, new UTF8Encoding(false));
         }
     }
