@@ -29,6 +29,9 @@ namespace InventorBOMExtractor
             RunReal(doc);
         }
 
+        // Set before each COM call so the result.json error pinpoints the exact failing step.
+        private string _stage = "init";
+
         // Real BOM extraction.
         private void RunReal(object doc)
         {
@@ -36,7 +39,9 @@ namespace InventorBOMExtractor
             try
             {
                 dynamic d = doc;
+                _stage = "doc.FullFileName";
                 report.Source = (string)d.FullFileName;
+                _stage = "doc.DocumentType";
                 int docType = (int)d.DocumentType;
                 if (docType != kAssemblyDocumentObject)
                 {
@@ -51,7 +56,7 @@ namespace InventorBOMExtractor
             }
             catch (Exception ex)
             {
-                report.Errors.Add(ex.Message);
+                report.Errors.Add($"[stage={_stage}] {ex.GetType().Name}: {ex.Message}");
             }
             finally
             {
@@ -62,28 +67,36 @@ namespace InventorBOMExtractor
         private List<BOMRow> ExtractBOM(dynamic asmDoc, ref int total)
         {
             var rows = new List<BOMRow>();
+            _stage = "asmDoc.ComponentDefinition";
             dynamic compDef = asmDoc.ComponentDefinition;
+            _stage = "compDef.BOM";
             dynamic bom = compDef.BOM;
+            _stage = "bom.StructuredViewEnabled=true";
             bom.StructuredViewEnabled = true;
-            bom.StructuredViewFirstLevelOnly = false;
+            _stage = "bom.BOMViews";
             dynamic views = bom.BOMViews;
 
             // COM collections expose Item() as the default member; the C# dynamic [..] indexer
             // does NOT reliably bind to it (throws E_INVALIDARG). Use explicit .Item(...).
             // Prefer the named "Structured" view; fall back to scanning by index.
             dynamic view = null;
+            _stage = "views.Item(\"Structured\")";
             try { view = views.Item("Structured"); }
             catch
             {
+                _stage = "views.Count";
                 int count = (int)views.Count;
                 for (int i = 1; i <= count; i++)
                 {
+                    _stage = $"views.Item({i})";
                     dynamic v = views.Item(i);
+                    _stage = $"views.Item({i}).Title";
                     if (string.Equals((string)v.Title, "Structured", StringComparison.OrdinalIgnoreCase))
                     { view = v; break; }
                 }
             }
             if (view == null) return rows;
+            _stage = "view.BOMRows";
             WalkRows(view.BOMRows, rows, ref total);
             return rows;
         }
