@@ -48,9 +48,12 @@ The MCP server resolves your APS DA nickname automatically from your credentials
 | `RevitExtractor` | Autodesk.Revit+2026 | Extracts all element parameters and properties from a Revit model | `result.csv` + `result.json` |
 | `RevitPDFExport` | Autodesk.Revit+2026 | Exports all views and sheets to PDF | `result.zip` (one PDF per sheet) |
 | `RevitIFCExport` | Autodesk.Revit+2026 | Exports a Revit model to IFC | `result.ifc` |
-| `RevitSheetListTD` | Autodesk.Revit+2026 | Generates a structured sheet list from a Revit model | `result.json` |
+| `RevitSheetList` | Autodesk.Revit+2026 | Generates a structured sheet list from a Revit model | `result.json` |
+| `RevitParameterUpdater` | Autodesk.Revit+2026 | Updates element parameters in a Revit model from CSV, XLSX, or JSON input | `result.rvt` · `result.json` |
 | `AutoCADDrawingMetadataExtractor` | Autodesk.AutoCAD+24_3 | Extracts layers, blocks, layouts, and drawing statistics from a DWG | `result.json` |
-| `AutoCADLayerReportTD` | Autodesk.AutoCAD+24_3 | Generates a detailed layer report from a DWG | `result.json` |
+| `AutoCADLayerReport` | Autodesk.AutoCAD+24_3 | Generates a detailed layer report from a DWG | `result.json` |
+| `CADStandardsChecker` | Autodesk.AutoCAD+24_3 | Validates a DWG against layer naming, text styles, blocks, linetypes, and drawing hygiene rules | `report.json` · `summary.csv` · `remediation.md` |
+| `InventorBOMExtractor` | Autodesk.Inventor+2025 | Extracts the Bill of Materials from an Inventor assembly (IAM) | `result.json` |
 
 > **Note on AutoCAD engine version:** AutoCAD bundles target `+24_3` (AutoCAD 2024, .NET Framework 4.8). The newer `.NET 8` engines (`+25_0`, `+26_0`) silently fail to load `.NET Framework` assemblies — `+24_3` is the proven, officially-documented stack.
 
@@ -100,8 +103,11 @@ Go to **Actions** and trigger each workflow manually (using **Run workflow**), o
 | `Build & Publish RevitPDFExport to APS` | RevitPDFExport |
 | `Build & Publish RevitIFCExport to APS` | RevitIFCExport |
 | `Build & Publish RevitSheetList to APS` | RevitSheetList |
+| `Build & Publish RevitParameterUpdater to APS` | RevitParameterUpdater |
 | `Build & Publish AutoCAD Metadata Extractor` | AutoCADDrawingMetadataExtractor |
 | `Build & Publish AutoCADLayerReport to APS` | AutoCADLayerReport |
+| `Build & Publish CADStandardsChecker to APS` | CADStandardsChecker |
+| `Build & Publish Inventor BOM Extractor` | InventorBOMExtractor |
 
 Each workflow:
 1. Builds the C# plugin DLL using MSBuild on a Windows runner
@@ -174,7 +180,7 @@ node scripts/smoke-test-activity.js
 |---------|-----------|-------|
 | Revit 2026 | `Autodesk.Revit+2026` | Current recommended for Revit bundles |
 | AutoCAD 2024 | `Autodesk.AutoCAD+24_3` | Use for all AutoCAD bundles (.NET Framework 4.8) |
-| Inventor 2024 | `Autodesk.Inventor+24` | |
+| Inventor 2025 | `Autodesk.Inventor+2025` | Used by InventorBOMExtractor |
 | 3ds Max 2024 | `Autodesk.3dsMax+2024` | |
 
 ---
@@ -187,8 +193,11 @@ src/
   RevitPDFExport/                   # Exports Revit views/sheets to PDF
   RevitIFCExport/                   # Exports Revit model to IFC
   RevitSheetList/                   # Generates Revit sheet list
+  RevitParameterUpdater/            # Updates Revit element parameters from CSV/XLSX/JSON
   AutoCADDrawingMetadataExtractor/  # Extracts DWG metadata (layers, blocks, layouts)
   AutoCADLayerReport/               # Generates DWG layer report
+  CADStandardsChecker/              # Validates a DWG against CAD standards rules
+  InventorBOMExtractor/             # Extracts BOM from an Inventor assembly (IAM)
 
 bundle/
   *.bundle/                         # Packaged bundle manifests (DLL contents added by CI)
@@ -197,17 +206,32 @@ bundle/
       *.addin                       # Revit only
 
 scripts/
-  publish-appbundle.js              # Upload + register AppBundle to APS DA
-  publish-activity.js               # Create or update Activity definition
-  smoke-test-activity.js            # Submit a test WorkItem and verify output
+  publish-appbundle.js              # Generic Revit AppBundle publisher
+  publish-autocad-appbundle.js      # AutoCAD AppBundle publisher
+  publish-inventor-appbundle.js     # Inventor AppBundle publisher
+  publish-activity.js               # RevitExtractor activity
+  publish-autocad-activity.js       # AutoCADDrawingMetadataExtractor activity
+  publish-cad-standards-activity.js # CADStandardsChecker activity
+  publish-ifc-activity.js           # RevitIFCExport activity
+  publish-inventor-activity.js      # InventorBOMExtractor activity
+  publish-param-updater-activity.js # RevitParameterUpdater activity
+  publish-pdf-activity.js           # RevitPDFExport activity
+  smoke-test-activity.js            # Generic smoke test runner
+  smoke-test-inventor.js            # Inventor BOM extractor smoke test
+  smoke-test-revit-ifc.js           # Revit IFC export smoke test
+  smoke-test-revit-param-updater.js # Revit parameter updater smoke test
+  smoke-test-revit.js               # Revit extractor smoke test
 
 .github/workflows/
-  build-and-publish.yml                       # RevitExtractor
-  build-publish-revit-pdf-export.yml          # RevitPDFExport
-  build-publish-revit-ifc-export.yml          # RevitIFCExport
-  build-publish-revit-sheetlist.yml           # RevitSheetList
-  build-publish-autocad-metadata-extractor.yml
-  build-publish-autocad-layerreport.yml
+  build-and-publish.yml                        # RevitExtractor
+  build-publish-revit-pdf-export.yml           # RevitPDFExport
+  build-publish-revit-ifc-export.yml           # RevitIFCExport
+  build-publish-revit-sheetlist.yml            # RevitSheetList
+  build-publish-revit-param-updater.yml        # RevitParameterUpdater
+  build-publish-autocad-metadata-extractor.yml # AutoCADDrawingMetadataExtractor
+  build-publish-autocad-layerreport.yml        # AutoCADLayerReport
+  build-publish-cad-standards-checker.yml      # CADStandardsChecker
+  build-publish-inventor-bom-extractor.yml     # InventorBOMExtractor
 
 test/
   sample.rvt                        # Test Revit model
