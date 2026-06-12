@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "layerNamePatterns": ["^[A-Z]-[A-Z]", "^[0-9]"],
+    "requiredLayers": [
+      { "name": "A-WALL", "color": 7, "linetype": "Continuous" },
+      { "name": "A-DOOR", "color": 3, "linetype": "Continuous" },
+      { "name": "A-ANNO-TEXT", "color": 2, "linetype": "Continuous" }
+    ],
+    "forbiddenLayers": ["DEFPOINTS", "0"],
+    "textStyleWhitelist": ["Standard", "Romans", "Arial"],
+    "dimStyleWhitelist": ["Standard", "Architectural", "Annotative"],
+    "requiredBlocks": ["TITLE_BLOCK", "NORTH_ARROW"],
+    "linetypeWhitelist": ["Continuous", "HIDDEN", "CENTER", "DASHED"],
+    "requirePurge": true
+  }
+}
