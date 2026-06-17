@@ -101,14 +101,22 @@ function buildActivityDef(engineId) {
         required:    true,
         localName:   'inputFile.zip',
       },
+      // The bundle emits result.csv (flattened BOM). resultJson is kept as an optional
+      // output for backward compatibility — it is simply absent now.
+      resultCsv: {
+        verb:        'put',
+        description: 'Extracted BOM as CSV (Level, ItemNumber, PartNumber, Description, Quantity, Unit, Material, Mass, IsAssembly)',
+        required:    false,
+        localName:   'result.csv',
+      },
       resultJson: {
         verb:        'put',
-        description: 'Extracted BOM as JSON',
+        description: 'Deprecated — BOM is now emitted as result.csv',
         required:    false,
         localName:   'result.json',
       },
     },
-    description: 'Extracts the Bill of Materials from an Inventor assembly (IAM) to result.json (part number, description, quantity, material, mass).',
+    description: 'Extracts the Bill of Materials from an Inventor assembly (IAM) to result.csv (part number, description, quantity, material, mass).',
   };
 }
 

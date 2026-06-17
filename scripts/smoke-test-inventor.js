@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Post-publish smoke gate: uploads the committed sample Inventor zip, runs the
 // ExtractInventorBOM+prod activity end-to-end, and FAILS the build unless
-// the work item reports status:"success" with valid result.json.
+// the work item reports status:"success" with valid result.csv.
 const fs    = require('fs');
 const path  = require('path');
 const https = require('https');
@@ -100,8 +100,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   if (dl.status !== 200) throw new Error(`signeds3download HTTP ${dl.status}: ${JSON.stringify(dl.body)}`);
   const inputUrl = dl.body.url;
 
-  // 4. Readwrite signed URL for result.json
-  const resObj = `smoke-inventor-result-${Date.now()}.json`;
+  // 4. Readwrite signed URL for result.csv
+  const resObj = `smoke-inventor-result-${Date.now()}.csv`;
   const sig = await req('POST', BASE, `/oss/v2/buckets/${BUCKET_KEY}/objects/${resObj}/signed?access=readwrite`, H, '{}');
   if (sig.status < 200 || sig.status >= 300) throw new Error(`signed result url HTTP ${sig.status}: ${JSON.stringify(sig.body)}`);
   const resultUrl = sig.body.signedUrl;
@@ -110,8 +110,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const wiBody = JSON.stringify({
     activityId: `${NICKNAME}.${ACTIVITY_ID}+${ALIAS}`,
     arguments: {
-      inputFile:  { url: inputUrl,  verb: 'get', pathInZip: 'BrewMain-Drawing/brewing-main.iam' },
-      resultJson: { url: resultUrl, verb: 'put' },
+      inputFile: { url: inputUrl,  verb: 'get', pathInZip: 'BrewMain-Drawing/brewing-main.iam' },
+      resultCsv: { url: resultUrl, verb: 'put' },
     },
   });
   const wi = await req('POST', BASE, '/da/us-east/v3/workitems', H, wiBody);
@@ -141,14 +141,23 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     throw new Error(`Smoke test FAILED: work item status='${status}'. The appbundle is not running correctly.`);
   }
 
-  // 8. Verify result.json
+  // 8. Verify result.csv
   const out = await getUrl(resultUrl);
-  console.log('───── result.json (first 2000 chars) ─────');
+  console.log('───── result.csv (first 2000 chars) ─────');
   console.log(out.text.slice(0, 2000));
-  console.log('──────────────────────────────────────────');
-  let parsed;
-  try { parsed = JSON.parse(out.text.replace(/^﻿/, '')); } catch { throw new Error('result.json is not valid JSON.'); }
-  if (!parsed.topLevelRows) throw new Error('result.json missing expected field "topLevelRows".');
+  console.log('─────────────────────────────────────────');
+  const text = out.text.replace(/^﻿/, '');
+  const lines = text.split(/\r?\n/).filter(l => l.length > 0);
+  const header = lines[0] || '';
+  if (header === 'error') {
+    throw new Error(`Smoke test FAILED: bundle reported an error: ${lines[1] || '(no detail)'}`);
+  }
+  const EXPECTED = 'Level,ItemNumber,PartNumber,Description,Quantity,Unit,Material,Mass,IsAssembly';
+  if (header !== EXPECTED) {
+    throw new Error(`result.csv header is "${header}" (expected "${EXPECTED}").`);
+  }
+  const rowCount = lines.length - 1;   // minus the header
+  if (rowCount < 1) throw new Error('result.csv has a header but no BOM rows.');
 
-  console.log(`✅ Smoke test PASSED — ${parsed.totalComponents} components, ${parsed.topLevelRows.length} top-level rows.`);
+  console.log(`✅ Smoke test PASSED — ${rowCount} BOM row(s) extracted.`);
 })().catch(err => { console.error('\n❌', err.message); process.exit(1); });

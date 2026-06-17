@@ -1,6 +1,6 @@
 // Scaffolded from templates/autocad/CommandClass.cs.
 // Capability: report every layer (name, color index, linetype, on/off/frozen/locked)
-// + a count to result.json. Uses only stable LayerTable APIs to avoid cross-version traps.
+// as RFC 4180 CSV to result.csv. Uses only stable LayerTable APIs to avoid cross-version traps.
 //
 // Proven command pattern: [assembly: CommandClass] + [assembly: ExtensionApplication(null)],
 // static [CommandMethod]. The verb LAYERREPORT must match PackageContents <Command> and the
@@ -12,7 +12,6 @@ using System.Text;
 using Autodesk.AutoCAD.ApplicationServices.Core;   // Application (core console)
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Runtime;
-using Newtonsoft.Json;
 
 [assembly: CommandClass(typeof(AutoCADLayerReport.Commands))]
 [assembly: ExtensionApplication(null)]
@@ -62,32 +61,39 @@ namespace AutoCADLayerReport
                     tr.Commit();
                 }
 
-                var report = new LayerReportData
-                {
-                    ExtractedAt = DateTime.UtcNow.ToString("o"),
-                    LayerCount  = layers.Count,
-                    Layers      = layers,
-                };
+                // Tabular output: header row + one row per layer.
+                var sb = new StringBuilder();
+                sb.Append("Name,ColorIndex,Linetype,IsOff,IsFrozen,IsLocked,IsPlottable\r\n");
+                foreach (var l in layers)
+                    sb.Append(string.Join(",",
+                        Csv(l.Name),
+                        l.ColorIndex.ToString(),
+                        Csv(l.Linetype),
+                        Bool(l.IsOff), Bool(l.IsFrozen), Bool(l.IsLocked), Bool(l.IsPlottable)) + "\r\n");
 
-                string json = JsonConvert.SerializeObject(report, Formatting.Indented);
-                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that breaks strict JSON parsers.
-                File.WriteAllText("result.json", json, new UTF8Encoding(false));
+                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that trips strict parsers.
+                File.WriteAllText("result.csv", sb.ToString(), new UTF8Encoding(false));
             }
             catch (System.Exception ex)
             {
-                var err = new { ok = false, error = ex.Message, stack = ex.StackTrace };
-                File.WriteAllText("result.json",
-                    JsonConvert.SerializeObject(err, Formatting.Indented),
+                // Still emit result.csv so the caller always gets a parseable artifact.
+                File.WriteAllText("result.csv",
+                    "error\r\n" + Csv(ex.Message) + "\r\n",
                     new UTF8Encoding(false));
             }
         }
-    }
 
-    internal class LayerReportData
-    {
-        public string ExtractedAt { get; set; } = "";
-        public int LayerCount { get; set; }
-        public List<LayerRow> Layers { get; set; } = new List<LayerRow>();
+        private static string Bool(bool b) => b ? "true" : "false";
+
+        // RFC 4180 field escaping: quote when the value contains a comma, quote, CR or LF;
+        // embedded quotes are doubled.
+        private static string Csv(string s)
+        {
+            if (s == null) s = "";
+            if (s.IndexOf(',') >= 0 || s.IndexOf('"') >= 0 || s.IndexOf('\n') >= 0 || s.IndexOf('\r') >= 0)
+                s = "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
     }
 
     internal class LayerRow

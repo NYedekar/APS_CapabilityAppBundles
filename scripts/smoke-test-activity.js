@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // Post-publish smoke gate: upload the committed sample DWG, run the just-published
-// ExtractAutoCADDrawingMetadata+prod activity end-to-end, and FAIL the build unless
-// the work item reports status:"success". Catches a silent regression (e.g. the
-// appbundle no longer loading) before it ever reaches a user.
+// AutoCAD activity end-to-end, and FAIL the build unless the work item reports
+// status:"success". Catches a silent regression (e.g. the appbundle no longer
+// loading) before it ever reaches a user.
+//
+// Shared by two AutoCAD bundles with different output formats. Set RESULT_FORMAT:
+//   'json' (default) → metadata extractor, validates valid JSON
+//   'csv'            → layer report,       validates a CSV header
+// which also selects the activity output arg (resultJson vs resultCsv).
 const fs    = require('fs');
 const path  = require('path');
 const https = require('https');
@@ -12,6 +17,9 @@ const CLIENT_SECRET = required('APS_CLIENT_SECRET');
 const NICKNAME      = required('APS_NICKNAME');
 const ACTIVITY_ID   = process.env.SMOKE_ACTIVITY_ID || 'ExtractAutoCADDrawingMetadata';
 const ALIAS         = process.env.ALIAS || 'prod';
+const RESULT_FORMAT = (process.env.RESULT_FORMAT || 'json').toLowerCase();   // 'json' | 'csv'
+const RESULT_ARG    = RESULT_FORMAT === 'csv' ? 'resultCsv' : 'resultJson';  // activity output arg
+const RESULT_EXT    = RESULT_FORMAT === 'csv' ? 'csv' : 'json';
 const SAMPLE_DWG    = process.env.SAMPLE_DWG || path.join(process.cwd(), 'test', 'sample.dwg');
 const BUCKET_KEY    = (NICKNAME.toLowerCase().replace(/[^a-z0-9]/g, '') + '-smoke').slice(0, 60);
 const BASE          = 'developer.api.autodesk.com';
@@ -101,8 +109,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   if (dl.status !== 200) throw new Error(`signeds3download HTTP ${dl.status}: ${JSON.stringify(dl.body)}`);
   const inputUrl = dl.body.url;
 
-  // 4. Readwrite signed URL for result.json (workitem PUTs here, we GET it after)
-  const resObj = `smoke-result-${Date.now()}.json`;
+  // 4. Readwrite signed URL for the result (workitem PUTs here, we GET it after)
+  const resObj = `smoke-result-${Date.now()}.${RESULT_EXT}`;
   const sig = await req('POST', BASE, `/oss/v2/buckets/${BUCKET_KEY}/objects/${resObj}/signed?access=readwrite`, H, '{}');
   if (sig.status < 200 || sig.status >= 300) throw new Error(`signed result url HTTP ${sig.status}: ${JSON.stringify(sig.body)}`);
   const resultUrl = sig.body.signedUrl;
@@ -111,8 +119,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const wiBody = JSON.stringify({
     activityId: `${NICKNAME}.${ACTIVITY_ID}+${ALIAS}`,
     arguments: {
-      inputFile:  { url: inputUrl, verb: 'get' },
-      resultJson: { url: resultUrl, verb: 'put' },
+      inputFile:     { url: inputUrl, verb: 'get' },
+      [RESULT_ARG]:  { url: resultUrl, verb: 'put' },
     },
   });
   const wi = await req('POST', BASE, '/da/us-east/v3/workitems', H, wiBody);
@@ -142,11 +150,24 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     throw new Error(`Smoke test FAILED: work item status='${status}' (expected 'success'). The appbundle/activity is not running correctly.`);
   }
 
-  // 8. Verify result.json is present and valid JSON
+  // 8. Verify the result artifact is present and well-formed for its declared format
   const out = await getUrl(resultUrl);
-  console.log('───── result.json ─────');
+  const fileName = `result.${RESULT_EXT}`;
+  console.log(`───── ${fileName} ─────`);
   console.log(out.text.slice(0, 2000));
   console.log('───────────────────────');
+  if (RESULT_FORMAT === 'csv') {
+    const lines = out.text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.length > 0);
+    const header = lines[0] || '';
+    if (header === 'error') {
+      throw new Error(`Smoke test FAILED: bundle reported an error: ${lines[1] || '(no detail)'}`);
+    }
+    if (header.indexOf(',') < 0) {
+      throw new Error(`Smoke test FAILED: result.csv has no comma-delimited header (got: "${header.slice(0, 120)}").`);
+    }
+    console.log(`Smoke test PASSED \u2014 valid result.csv (${lines.length - 1} row(s)).`);
+    return;
+  }
   try { JSON.parse(out.text.replace(/^\uFEFF/, '')); } catch { throw new Error('Smoke test FAILED: result.json is not valid JSON.'); }
 
   console.log('✅ Smoke test PASSED — work item succeeded and produced valid result.json.');

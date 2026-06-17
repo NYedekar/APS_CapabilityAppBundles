@@ -117,14 +117,23 @@ function buildActivityDef(engineId) {
         required:    true,
         localName:   '$(inputFile)',
       },
+      // Two optional outputs so this shared activity definition serves both AutoCAD bundles:
+      // the metadata extractor writes result.json, the layer report writes result.csv.
+      // A bundle only ever produces one of these; the unused output is simply absent.
       resultJson: {
         verb:        'put',
-        description: 'Extracted DWG metadata as JSON',
+        description: 'Extracted DWG data as JSON (metadata extractor)',
         required:    false,
         localName:   'result.json',
       },
+      resultCsv: {
+        verb:        'put',
+        description: 'Extracted DWG data as CSV (layer report)',
+        required:    false,
+        localName:   'result.csv',
+      },
     },
-    description: 'Extracts all DWG metadata (summary info, layers, blocks, layouts, entity counts, symbol tables) to result.json',
+    description: 'Extracts DWG data — metadata extractor emits result.json; layer report emits result.csv',
   };
 }
 

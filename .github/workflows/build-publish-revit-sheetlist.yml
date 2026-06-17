@@ -111,7 +111,7 @@ jobs:
 
       # ── END-TO-END SMOKE GATE (Revit) ───────────────────────────────────────
       # Runs the just-published activity on test/sample.rvt and FAILS the build unless
-      # the work item returns status:success + a valid, no-BOM result.json with SheetCount.
+      # the work item returns status:success + a valid, no-BOM result.csv (Number,Name,Id).
       - name: Smoke test (run activity on sample RVT)
         env:
           APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}

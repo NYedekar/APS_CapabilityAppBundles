@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Post-publish Revit smoke gate: upload the committed sample RVT, run the just-published
 // Revit activity end-to-end, and FAIL the build unless the work item reports status:"success"
-// AND produces a valid, NO-BOM result.json. Catches a silent regression (e.g. the appbundle
+// AND produces a valid, NO-BOM result.csv. Catches a silent regression (e.g. the appbundle
 // no longer loading, or DesignAutomationBridge.dll missing) before it reaches a user.
 //
 // Adapted from scripts/smoke-test-activity.js (the DWG variant). Activity I/O contract
-// (from publish-activity.js): input arg `rvtFile` (get), output arg `resultJson` (put).
+// (from publish-activity.js): input arg `rvtFile` (get), output arg `resultCsv` (put).
 const fs    = require('fs');
 const path  = require('path');
 const https = require('https');
@@ -104,18 +104,18 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   if (dl.status !== 200) throw new Error(`signeds3download HTTP ${dl.status}: ${JSON.stringify(dl.body)}`);
   const inputUrl = dl.body.url;
 
-  // 4. Readwrite signed URL for result.json (workitem PUTs here, we GET it after)
-  const resObj = `smoke-result-${Date.now()}.json`;
+  // 4. Readwrite signed URL for result.csv (workitem PUTs here, we GET it after)
+  const resObj = `smoke-result-${Date.now()}.csv`;
   const sig = await req('POST', BASE, `/oss/v2/buckets/${BUCKET_KEY}/objects/${resObj}/signed?access=readwrite`, H, '{}');
   if (sig.status < 200 || sig.status >= 300) throw new Error(`signed result url HTTP ${sig.status}: ${JSON.stringify(sig.body)}`);
   const resultUrl = sig.body.signedUrl;
 
-  // 5. Submit work item (arg names must match the activity: rvtFile in, resultJson out)
+  // 5. Submit work item (arg names must match the activity: rvtFile in, resultCsv out)
   const wiBody = JSON.stringify({
     activityId: `${NICKNAME}.${ACTIVITY_ID}+${ALIAS}`,
     arguments: {
-      rvtFile:    { url: inputUrl, verb: 'get' },
-      resultJson: { url: resultUrl, verb: 'put' },
+      rvtFile:   { url: inputUrl, verb: 'get' },
+      resultCsv: { url: resultUrl, verb: 'put' },
     },
   });
   const wi = await req('POST', BASE, '/da/us-east/v3/workitems', H, wiBody);
@@ -145,21 +145,24 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     throw new Error(`Smoke test FAILED: work item status='${status}' (expected 'success'). The appbundle/activity is not running correctly.`);
   }
 
-  // 8. Verify result.json: present, valid JSON, NO BOM, and has the expected shape
+  // 8. Verify result.csv: present, NO BOM, and has the expected header
   const out = await getUrl(resultUrl);
-  console.log('───── result.json ─────');
+  console.log('───── result.csv ─────');
   console.log(out.text.slice(0, 2000));
-  console.log('───────────────────────');
-  // Strict no-BOM gate (the guide treats a BOM as a real bug — strict JS parsers choke on it)
+  console.log('──────────────────────');
+  // Strict no-BOM gate (the guide treats a BOM as a real bug — strict parsers choke on it)
   if (out.raw.length >= 3 && out.raw[0] === 0xEF && out.raw[1] === 0xBB && out.raw[2] === 0xBF) {
-    throw new Error('Smoke test FAILED: result.json starts with a UTF-8 BOM. Write it with new UTF8Encoding(false).');
+    throw new Error('Smoke test FAILED: result.csv starts with a UTF-8 BOM. Write it with new UTF8Encoding(false).');
   }
-  let parsed;
-  try { parsed = JSON.parse(out.text); } catch { throw new Error('Smoke test FAILED: result.json is not valid JSON.'); }
-  const sheetCount = parsed.SheetCount ?? parsed.sheetCount;   // Newtonsoft default is PascalCase
-  if (typeof sheetCount !== 'number') {
-    throw new Error(`Smoke test FAILED: result.json missing numeric SheetCount (got: ${JSON.stringify(parsed).slice(0,200)}).`);
+  const lines = out.text.split(/\r?\n/).filter(l => l.length > 0);
+  const header = lines[0] || '';
+  if (header === 'error') {
+    throw new Error(`Smoke test FAILED: bundle reported an error: ${lines[1] || '(no detail)'}`);
   }
+  if (header !== 'Number,Name,Id') {
+    throw new Error(`Smoke test FAILED: result.csv header is "${header}" (expected "Number,Name,Id").`);
+  }
+  const rowCount = lines.length - 1;   // minus the header
 
-  console.log(`✅ Revit smoke test PASSED — status:success, no BOM, SheetCount=${sheetCount}.`);
+  console.log(`✅ Revit smoke test PASSED — status:success, no BOM, ${rowCount} sheet row(s).`);
 })().catch(err => { console.error('\n❌', err.message); process.exit(1); });
