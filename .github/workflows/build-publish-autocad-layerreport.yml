@@ -101,5 +101,6 @@ jobs:
           APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
           SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
           SAMPLE_DWG:        test/condo-skylight.dwg
+          RESULT_FORMAT:     csv     # layer report emits result.csv (resultCsv output arg)
         run: node scripts/smoke-test-activity.js
         shell: bash

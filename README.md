@@ -48,12 +48,12 @@ The MCP server resolves your APS DA nickname automatically from your credentials
 | `RevitExtractor` | Autodesk.Revit+2026 | Extracts all element parameters and properties from a Revit model | `result.csv` + `result.json` |
 | `RevitPDFExport` | Autodesk.Revit+2026 | Exports all views and sheets to PDF | `result.zip` (one PDF per sheet) |
 | `RevitIFCExport` | Autodesk.Revit+2026 | Exports a Revit model to IFC | `result.ifc` |
-| `RevitSheetList` | Autodesk.Revit+2026 | Generates a structured sheet list from a Revit model | `result.json` |
+| `RevitSheetList` | Autodesk.Revit+2026 | Generates a structured sheet list from a Revit model | `result.csv` |
 | `RevitParameterUpdater` | Autodesk.Revit+2026 | Updates element parameters in a Revit model from CSV, XLSX, or JSON input | `result.rvt` · `result.json` |
 | `AutoCADDrawingMetadataExtractor` | Autodesk.AutoCAD+24_3 | Extracts layers, blocks, layouts, and drawing statistics from a DWG | `result.json` |
-| `AutoCADLayerReport` | Autodesk.AutoCAD+24_3 | Generates a detailed layer report from a DWG | `result.json` |
+| `AutoCADLayerReport` | Autodesk.AutoCAD+24_3 | Generates a detailed layer report from a DWG | `result.csv` |
 | `CADStandardsChecker` | Autodesk.AutoCAD+24_3 | Validates a DWG against layer naming, text styles, blocks, linetypes, and drawing hygiene rules | `report.json` · `summary.csv` · `remediation.md` |
-| `InventorBOMExtractor` | Autodesk.Inventor+2025 | Extracts the Bill of Materials from an Inventor assembly (IAM) | `result.json` |
+| `InventorBOMExtractor` | Autodesk.Inventor+2025 | Extracts the Bill of Materials from an Inventor assembly (IAM) | `result.csv` |
 
 > **Note on AutoCAD engine version:** AutoCAD bundles target `+24_3` (AutoCAD 2024, .NET Framework 4.8). The newer `.NET 8` engines (`+25_0`, `+26_0`) silently fail to load `.NET Framework` assemblies — `+24_3` is the proven, officially-documented stack.
 

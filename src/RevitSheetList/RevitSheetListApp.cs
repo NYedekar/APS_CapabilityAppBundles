@@ -1,12 +1,11 @@
 // Scaffolded from templates/revit/DBApplication.cs.
-// Capability: export every sheet (number, name, id) + a count to result.json.
+// Capability: export every sheet (number, name, id) as RFC 4180 CSV to result.csv.
 // Proven headless pattern: IExternalDBApplication + DesignAutomationBridge.
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
 using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.DB;
 using DesignAutomationFramework;
@@ -49,37 +48,36 @@ namespace RevitSheetList
                     })
                     .ToList();
 
-                var report = new SheetReport
-                {
-                    ExtractedAt = DateTime.UtcNow.ToString("o"),
-                    Title       = doc.Title,
-                    SheetCount  = sheets.Count,
-                    Sheets      = sheets,
-                };
+                // Tabular output: header row + one row per sheet, ordered by sheet number.
+                var sb = new StringBuilder();
+                sb.Append("Number,Name,Id\r\n");
+                foreach (var s in sheets)
+                    sb.Append($"{Csv(s.Number)},{Csv(s.Name)},{s.Id}\r\n");
 
-                string json = JsonConvert.SerializeObject(report, Formatting.Indented);
-                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that breaks strict JSON parsers.
-                File.WriteAllText("result.json", json, new UTF8Encoding(false));
+                // UTF-8 WITHOUT BOM — Encoding.UTF8 emits a BOM that trips strict parsers.
+                File.WriteAllText("result.csv", sb.ToString(), new UTF8Encoding(false));
 
-                Console.WriteLine($"[RevitSheetList] Done — {sheets.Count} sheets → result.json.");
+                Console.WriteLine($"[RevitSheetList] Done — {sheets.Count} sheets → result.csv.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[RevitSheetList] ERROR: {ex.Message}");
-                var err = new { ok = false, error = ex.Message, stack = ex.StackTrace };
-                File.WriteAllText("result.json",
-                    JsonConvert.SerializeObject(err, Formatting.Indented),
+                // Still emit result.csv so the caller always gets a parseable artifact.
+                File.WriteAllText("result.csv",
+                    "error\r\n" + Csv(ex.Message) + "\r\n",
                     new UTF8Encoding(false));
             }
         }
-    }
 
-    internal class SheetReport
-    {
-        public string ExtractedAt { get; set; } = "";
-        public string Title { get; set; } = "";
-        public int SheetCount { get; set; }
-        public List<SheetRow> Sheets { get; set; } = new List<SheetRow>();
+        // RFC 4180 field escaping: quote when the value contains a comma, quote, CR or LF;
+        // embedded quotes are doubled.
+        private static string Csv(string s)
+        {
+            if (s == null) s = "";
+            if (s.IndexOf(',') >= 0 || s.IndexOf('"') >= 0 || s.IndexOf('\n') >= 0 || s.IndexOf('\r') >= 0)
+                s = "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
     }
 
     internal class SheetRow

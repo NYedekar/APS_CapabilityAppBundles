@@ -1,7 +1,6 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -18,7 +17,7 @@ namespace InventorBOMExtractor
         //   kPartDocumentObject = 12290, kAssemblyDocumentObject = 12291, kDrawingDocumentObject = 12292
         private const int kAssemblyDocumentObject = 12291;
 
-        // Set before each COM call so result.json errors pinpoint the failing step.
+        // Set before each COM call so result.csv errors pinpoint the failing step.
         private string _stage = "init";
 
         public BOMExtractorAutomation() { }
@@ -196,17 +195,53 @@ namespace InventorBOMExtractor
             try { return fn(); } catch { return 0; }
         }
 
-        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        {
-            // camelCase: source, generatedAt, totalComponents, topLevelRows, errors, itemNumber, …
-            ContractResolver = new CamelCasePropertyNamesContractResolver(),
-            Formatting = Formatting.Indented,
-        };
-
+        // The BOM tree is flattened into a single CSV: each row carries a Level (0 = top level,
+        // incremented per sub-assembly depth) so the hierarchy is preserved in a tabular form.
         private static void WriteResult(BOMReport report)
         {
-            string json = JsonConvert.SerializeObject(report, JsonSettings);
-            File.WriteAllText("result.json", json, new UTF8Encoding(false));
+            var sb = new StringBuilder();
+            if (report.TopLevelRows.Count == 0 && report.Errors.Count > 0)
+            {
+                // Extraction failed — emit the diagnostics as a single-column CSV.
+                sb.Append("error\r\n");
+                foreach (var e in report.Errors)
+                    sb.Append(Csv(e) + "\r\n");
+            }
+            else
+            {
+                sb.Append("Level,ItemNumber,PartNumber,Description,Quantity,Unit,Material,Mass,IsAssembly\r\n");
+                foreach (var row in report.TopLevelRows)
+                    AppendRow(sb, row, 0);
+            }
+            // UTF-8 WITHOUT BOM — keeps strict parsers happy.
+            File.WriteAllText("result.csv", sb.ToString(), new UTF8Encoding(false));
+        }
+
+        private static void AppendRow(StringBuilder sb, BOMRow row, int level)
+        {
+            sb.Append(string.Join(",",
+                level.ToString(CultureInfo.InvariantCulture),
+                Csv(row.ItemNumber),
+                Csv(row.PartNumber),
+                Csv(row.Description),
+                row.Quantity.ToString(CultureInfo.InvariantCulture),
+                Csv(row.Unit),
+                Csv(row.Material),
+                Csv(row.Mass),
+                row.IsAssembly ? "true" : "false"));
+            sb.Append("\r\n");
+            foreach (var child in row.ChildRows)
+                AppendRow(sb, child, level + 1);
+        }
+
+        // RFC 4180 field escaping: quote when the value contains a comma, quote, CR or LF;
+        // embedded quotes are doubled.
+        private static string Csv(string s)
+        {
+            if (s == null) s = "";
+            if (s.IndexOf(',') >= 0 || s.IndexOf('"') >= 0 || s.IndexOf('\n') >= 0 || s.IndexOf('\r') >= 0)
+                s = "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
         }
     }
 }
