@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       APS DESIGN AUTOMATION — AutoCAD AppBundle plugin (.csproj template)
+
+       PROVEN STACK (do not deviate): .NET Framework 4.8 plugin on the AutoCAD 2024
+       (+24_3) DA engine. The newer AutoCAD engines (+25_0 and up) silently refused to
+       load our net8.0 appbundle across v5-v20 (no error, just "Unknown command"); this
+       cost 22 versions to diagnose. +26_0 (AutoCAD 2027) is a SEPARATE, untested .NET 10
+       combination — do NOT assume it is .NET 8. All non-+24_3 engines are UNVERIFIED:
+       smoke-gate-first. net48 + AcCoreMgd/AcDbMgd is the configuration every working
+       Autodesk DA-for-AutoCAD sample uses.
+
+       REPLACE the 3 tokens below when scaffolding a new bundle:
+         AUDemoAcadSmoke   e.g. AutoCADLayerReport
+       ════════════════════════════════════════════════════════════════════════ -->
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>AUDemoAcadSmoke</AssemblyName>
+    <RootNamespace>AUDemoAcadSmoke</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <NoWarn>CA1416;CS8632</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AcCoreMgd + AcDbMgd v20 (net45 lib, consumed fine by net48). Reference-ONLY:
+         ExcludeAssets="runtime" keeps the real AutoCAD DLLs OUT of the bundle
+         (== Copy Local = false); the DA worker supplies them at runtime. -->
+    <PackageReference Include="AutoCAD.NET.Core" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="20.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- net48 has NO in-box JSON. Newtonsoft IS copied into Contents/ and SHIPPED in
+         the bundle (Copy Local), exactly like the official Autodesk DA-AutoCAD sample.
+         Do NOT use System.Text.Json on net48. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Uncomment if this bundle reads XLSX files.
+         Both packages are required; both ship in Contents/ (Copy Local).
+         Use magic-byte detection to distinguish XLSX (PK\x03\x04), JSON ([/{),
+         and CSV (everything else) — DA does not preserve file extensions. -->
+    <!--
+    <PackageReference Include="ExcelDataReader" Version="3.6.0" />
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.6.0" />
+    -->
+  </ItemGroup>
+
+</Project>

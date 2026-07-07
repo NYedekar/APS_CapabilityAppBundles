@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- ════════════════════════════════════════════════════════════════════════════
+     APS DA — AutoCAD AppBundle manifest (PackageContents.xml template)
+
+     Structure mirrors the official Autodesk DA-for-AutoCAD sample
+     (Autodesk-Forge/learn.forge.designautomation, UpdateDWGParam.bundle), which is
+     known to load under accoreconsole. Deliberately MINIMAL:
+       * Version + ProductCode present (the sample has both).
+       * NO SupportedLocales — that attribute makes the autoloader SKIP the bundle
+         when the DA worker locale doesn't match the exact string, producing a
+         silent "Unknown command" with no load and no Initialize. DO NOT ADD IT.
+       * NO AutodeskProduct / ProductType / AppVersion extras.
+       * Both LoadOnCommandInvocation AND LoadOnAutoCADStartup = True, as the sample.
+
+     REPLACE tokens:
+       AUDemoAcadSmoke   e.g. AutoCADLayerReport      (== AssemblyName, == .dll name)
+       {028C513E-A2D7-4BFB-B691-0979AC070D4F}  a FRESH GUID in braces, e.g. {NEW-GUID-HERE}  (uuidgen)
+       AUDemoAcadSmokeCommands    e.g. LayerReportCommands     (any unique group id)
+       __CMD_*__         your AutoCAD command verbs (UPPERCASE)
+     ════════════════════════════════════════════════════════════════════════════ -->
+<ApplicationPackage SchemaVersion="1.0"
+                    Version="1.0"
+                    ProductCode="{028C513E-A2D7-4BFB-B691-0979AC070D4F}"
+                    Name="AUDemoAcadSmoke"
+                    Description="One-line description of what this bundle does."
+                    Author="APS Team">
+
+  <CompanyDetails Name="APS" Url="" Email="" />
+
+  <Components>
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD" />
+    <ComponentEntry AppName="AUDemoAcadSmoke"
+                    ModuleName="./Contents/AUDemoAcadSmoke.dll"
+                    AppDescription="plugin description"
+                    LoadOnCommandInvocation="True"
+                    LoadOnAutoCADStartup="True">
+      <Commands GroupName="AUDemoAcadSmokeCommands">
+        <Command Global="APSAUDEMOACAD" Local="APSAUDEMOACAD" />
+        <!-- add more <Command .../> lines as needed -->
+      </Commands>
+    </ComponentEntry>
+  </Components>
+
+</ApplicationPackage>
