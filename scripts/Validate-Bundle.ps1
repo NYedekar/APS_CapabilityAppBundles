@@ -55,10 +55,16 @@ Write-Host "`nValidating: $BundlePath  (product=$Product)`n"
 # ── Section 1: zip root layout ────────────────────────────────────────────────
 Write-Host "1. Zip root layout"
 
-$bundleFolders = $entries | Where-Object { $_ -match '^[^/]+\.bundle/$' }
-Check "Exactly one .bundle folder at zip root" ($bundleFolders.Count -eq 1) "Found: $($bundleFolders -join ', ')"
+# Derive the .bundle root from ANY entry under it — do not require an explicit
+# directory entry. Compress-Archive emits only file entries (e.g.
+# "Foo.bundle/PackageContents.xml"), not a bare "Foo.bundle/" directory entry,
+# so matching on a trailing-slash directory entry finds nothing even on a valid zip.
+$bundleRoots = $entries |
+    ForEach-Object { if ($_ -match '^([^/]+\.bundle)(/|$)') { $matches[1] } } |
+    Select-Object -Unique
+Check "Exactly one .bundle folder at zip root" ($bundleRoots.Count -eq 1) "Found: $($bundleRoots -join ', ')"
 
-$bundleRoot = if ($bundleFolders) { ($bundleFolders[0] -replace '/$', '') } else { "UNKNOWN.bundle" }
+$bundleRoot = if ($bundleRoots) { $bundleRoots[0] } else { "UNKNOWN.bundle" }
 
 $manifestEntry = "$bundleRoot/PackageContents.xml"
 Check "PackageContents.xml present at bundle root" ($entries -contains $manifestEntry)
