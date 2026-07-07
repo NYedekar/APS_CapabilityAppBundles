@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  APS DA — Inventor add-in manifest (.addin template)
+
+  VERIFIED, shipped green: copied from
+  bundle/InventorBOMExtractor.bundle/Contents/InventorBOMExtractor.Inventor.addin
+  in APS_CapabilityAppBundles.
+
+  CRITICAL RULES:
+  - Type MUST be "Plugin".
+  - ClassId and ClientId are the SAME GUID here ({6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}) — this mirrors
+    the real InventorBOMExtractor bundle, where ProductCode (PackageContents.xml),
+    ClassId, and ClientId (this file) all collapse to one GUID. Use a FRESH GUID
+    (run: uuidgen) for a new bundle — never reuse this one.
+  - This file MUST live in Contents/ alongside the compiled AUDemoInvCheck.dll.
+
+  REPLACE: AUDemoInvCheck, {6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}.
+-->
+<Addin Type="Plugin">
+  <ClassId>{{6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}}</ClassId>
+  <ClientId>{{6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}}</ClientId>
+  <DisplayName>AUDemoInvCheck</DisplayName>
+  <Description>One-line description of what this bundle does.</Description>
+  <Assembly>AUDemoInvCheck.dll</Assembly>
+</Addin>

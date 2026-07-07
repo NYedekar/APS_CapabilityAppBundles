@@ -1,0 +1,128 @@
+# Hand-wired Inventor CI (scaffold-bundle.js does not yet generate Inventor workflows).
+# Mirrors the proven build-publish-inventor-bom-extractor.yml, renamed for AUDemoInvCheck.
+# MANDATORY: "Compile Inventor interop IL" runs ilasm.exe against lib/Inventor/Inventor.Interop.il
+# BEFORE dotnet publish, producing Inventor.Interop.dll for EmbedInteropTypes=True.
+name: Build & Publish AUDemoInvCheck to APS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/AUDemoInvCheck/**'
+      - 'bundle/AUDemoInvCheck.bundle/**'
+      - 'lib/Inventor/**'
+      - 'scripts/publish-inventor-appbundle.js'
+      - 'scripts/publish-inventor-activity.js'
+      - 'scripts/smoke-test-au-demo-inv-check.js'
+      - 'test/inventor/**'
+      - '.github/workflows/build-publish-au-demo-inv-check.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-au-demo-inv-check
+  cancel-in-progress: false
+
+env:
+  BUNDLE_NAME:    "AUDemoInvCheck"
+  ACTIVITY_ID:    "AUDemoInvCheck"
+  ALIAS:          "prod"
+  ENGINE_VERSION: "2025"
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Compile Inventor interop IL
+        shell: pwsh
+        run: |
+          $ilasm = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ilasm.exe"
+          & $ilasm /dll /quiet /output:"src\AUDemoInvCheck\Inventor.Interop.dll" "lib\Inventor\Inventor.Interop.il"
+          if ($LASTEXITCODE -ne 0) { Write-Error "ilasm failed"; exit 1 }
+          Write-Host "Inventor.Interop.dll compiled"
+
+      - name: Build AUDemoInvCheck.dll
+        run: |
+          dotnet publish src/AUDemoInvCheck/AUDemoInvCheck.csproj `
+            --configuration Release `
+            --output "${{ github.workspace }}\bundle\AUDemoInvCheck.bundle\Contents\"
+        shell: pwsh
+
+      - name: Verify bundle structure
+        run: |
+          $bundle = "bundle\AUDemoInvCheck.bundle"
+          Get-ChildItem -Recurse $bundle | Select-Object FullName | Format-Table
+          $checks = @(
+            "$bundle\PackageContents.xml",
+            "$bundle\Contents\AUDemoInvCheck.dll",
+            "$bundle\Contents\Newtonsoft.Json.dll",
+            "$bundle\Contents\AUDemoInvCheck.Inventor.addin"
+          )
+          foreach ($f in $checks) {
+            if (-not (Test-Path $f)) { Write-Error "Missing: $f"; exit 1 }
+            Write-Host "OK $f"
+          }
+        shell: pwsh
+
+      - name: Zip bundle
+        run: |
+          $bundle  = "bundle\AUDemoInvCheck.bundle"
+          $zipName = "${{ env.BUNDLE_NAME }}.zip"
+          Compress-Archive -Path $bundle -DestinationPath $zipName -Force
+          Add-Type -Assembly System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("$PWD\$zipName")
+          $zip.Entries | Select-Object FullName | Format-Table
+          $zip.Dispose()
+          Write-Host "$zipName created"
+        shell: pwsh
+
+      - name: Validate bundle (pre-flight)
+        run: pwsh scripts/Validate-Bundle.ps1 -BundlePath "AUDemoInvCheck.zip" -Product inventor
+        shell: pwsh
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AUDemoInvCheck-bundle
+          path: AUDemoInvCheck.zip
+
+      - name: Publish AppBundle
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+        run: node scripts/publish-inventor-appbundle.js
+        shell: bash
+
+      - name: Publish Activity
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+        run: node scripts/publish-inventor-activity.js
+        shell: bash
+
+      - name: Smoke test (run activity on sample Inventor assembly)
+        env:
+          APS_CLIENT_ID:     ${{ secrets.APS_CLIENT_ID }}
+          APS_CLIENT_SECRET: ${{ secrets.APS_CLIENT_SECRET }}
+          APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
+          SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
+          PATH_IN_ZIP:       "BrewMain-Drawing/brewing-main.iam"
+        run: node scripts/smoke-test-au-demo-inv-check.js
+        shell: bash
+
+      - name: Summary
+        run: |
+          echo "AppBundle '${{ env.BUNDLE_NAME }}+${{ env.ALIAS }}' published."
+          echo "Activity '${{ env.ACTIVITY_ID }}+${{ env.ALIAS }}' published."
+          echo "Smoke test passed."
+        shell: bash
