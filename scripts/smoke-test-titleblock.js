@@ -80,6 +80,18 @@ function getUrl(url) {
   });
 }
 
+// The legacy readwrite signed URL can lag briefly behind the workitem's uploaded
+// output, returning empty on the first GET. Retry until non-empty (or give up).
+async function getResult(url, tries = 6) {
+  let out = { raw: Buffer.alloc(0), text: "" };
+  for (let i = 0; i < tries; i++) {
+    out = await getUrl(url);
+    if (out.text.trim().length > 0) return out;
+    await sleep(2000);
+  }
+  return out;
+}
+
 async function uploadOss(t, buf, key) {
   const H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
   const up = await req("GET", BASE, `/oss/v2/buckets/${BUCKET_KEY}/objects/${key}/signeds3upload`, H);
@@ -179,7 +191,7 @@ function pickEditableAttr(titleBlocks) {
     }, `extract ${dwgName}`);
     if (status !== "success") { probeLog.push(`${dwgName}: workitem status=${status}`); continue; }
 
-    const out = await getUrl(resJsonUrl);
+    const out = await getResult(resJsonUrl);
     if (out.raw.length >= 3 && out.raw[0] === 0xEF && out.raw[1] === 0xBB && out.raw[2] === 0xBF)
       throw new Error("Smoke test FAILED: result.json has a UTF-8 BOM (write with new UTF8Encoding(false))");
     console.log(`───── ${dwgName} result.json ─────`);
@@ -230,7 +242,7 @@ function pickEditableAttr(titleBlocks) {
   }, "update");
   if (status !== "success") throw new Error(`Smoke test FAILED: update workitem status='${status}'`);
 
-  const out = await getUrl(resultJsonUrl);
+  const out = await getResult(resultJsonUrl);
   console.log("───── update result.json ─────");
   console.log(out.text.slice(0, 2000));
   console.log("──────────────────────────────");
@@ -246,7 +258,7 @@ function pickEditableAttr(titleBlocks) {
     throw new Error(`Smoke test FAILED: expected updatedCount>0, got ${count}`);
 
   // result.dwg must have been written.
-  const dwgOut = await getUrl(resultDwgUrl);
+  const dwgOut = await getResult(resultDwgUrl);
   if (dwgOut.raw.length < 100)
     throw new Error(`Smoke test FAILED: result.dwg is suspiciously small (${dwgOut.raw.length} bytes)`);
 

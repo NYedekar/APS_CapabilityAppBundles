@@ -112,7 +112,9 @@ jobs:
           APS_NICKNAME:      ${{ secrets.APS_NICKNAME }}
           SMOKE_ACTIVITY_ID: ${{ env.ACTIVITY_ID }}
           # Probe order: first candidate with an attributed title block wins.
-          SMOKE_SAMPLE_DWGS: test/sample.dwg,test/condo-skylight.dwg
+          # titleblock-sample.dwg is the known-good fixture (paper-space layout
+          # "SECTIONS AND DETAILS" → "Rev" block → editable "REV" tag).
+          SMOKE_SAMPLE_DWGS: test/titleblock-sample.dwg,test/sample.dwg
         run: node scripts/smoke-test-titleblock.js
         shell: bash
 
