@@ -400,13 +400,27 @@ namespace RevitExtractor
 
                 // Geometric fallback: test the instance's location point against
                 // each placed room. Recovers families with no Room Calculation Point.
+                //
+                // Floor-standing furniture has its location point ON the floor
+                // plane (Z = level elevation), i.e. right on the room's lower
+                // boundary, where IsPointInRoom is unreliable. Nudge the test
+                // point up ~2 ft so it sits clearly inside the room volume.
                 if (room == null && _placedRooms.Count > 0
                     && fi.Location is LocationPoint loc)
                 {
-                    var pt = loc.Point;
+                    const double NUDGE_FT = 2.0;   // Revit internal units are feet
+                    var basePt   = loc.Point;
+                    var raisedPt = new XYZ(basePt.X, basePt.Y, basePt.Z + NUDGE_FT);
                     foreach (var r in _placedRooms)
                     {
-                        try { if (r.IsPointInRoom(pt)) { room = r; break; } }
+                        try
+                        {
+                            if (r.IsPointInRoom(raisedPt) || r.IsPointInRoom(basePt))
+                            {
+                                room = r;
+                                break;
+                            }
+                        }
                         catch { }
                     }
                 }
