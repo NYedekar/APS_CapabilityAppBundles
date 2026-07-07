@@ -169,8 +169,10 @@ if ($manifestXml) {
         $moduleName = $manifestXml.ApplicationPackage.Components.ComponentEntry.ModuleName
         Check "ModuleName points to .addin file (not .dll)" ($moduleName -match '\.addin$') "ModuleName='$moduleName'"
 
-        # Platform should be Inventor
-        $platform = $manifestXml.ApplicationPackage.Components.ComponentEntry.RuntimeRequirements.Platform
+        # Platform should be Inventor. RuntimeRequirements sits directly under <Components>
+        # (sibling of ComponentEntry), not nested inside ComponentEntry — same as the
+        # AutoCAD SupportedLocales check above.
+        $platform = $manifestXml.ApplicationPackage.Components.RuntimeRequirements.Platform
         Check "RuntimeRequirements Platform='Inventor'" ($platform -eq 'Inventor') "Platform='$platform'"
     }
 }
