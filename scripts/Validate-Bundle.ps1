@@ -114,9 +114,13 @@ try {
 }
 
 if ($manifestXml) {
-    # ProductCode (GUID) present
-    $productCode = $manifestXml.ApplicationPackage.ProductCode
-    Check "ProductCode (GUID) present" ($productCode -and $productCode -match '^\{?[0-9A-Fa-f-]{32,36}\}?$')
+    # ProductCode (GUID) present — AutoCAD and Inventor carry one in PackageContents.xml.
+    # Revit does NOT: it registers through the .addin AddInId, and working Revit bundles
+    # have no ProductCode attribute, so requiring it for Revit is a false positive.
+    if ($Product -ne 'revit') {
+        $productCode = $manifestXml.ApplicationPackage.ProductCode
+        Check "ProductCode (GUID) present" ($productCode -and $productCode -match '^\{?[0-9A-Fa-f-]{32,36}\}?$')
+    }
 
     if ($Product -eq 'autocad') {
         # No SupportedLocales — this causes silent skip when worker locale doesn't match
