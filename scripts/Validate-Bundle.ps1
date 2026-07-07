@@ -59,12 +59,15 @@ Write-Host "1. Zip root layout"
 # directory entry. Compress-Archive emits only file entries (e.g.
 # "Foo.bundle/PackageContents.xml"), not a bare "Foo.bundle/" directory entry,
 # so matching on a trailing-slash directory entry finds nothing even on a valid zip.
-$bundleRoots = $entries |
+$bundleRoots = @($entries |
     ForEach-Object { if ($_ -match '^([^/]+\.bundle)(/|$)') { $matches[1] } } |
-    Select-Object -Unique
+    Select-Object -Unique)
 Check "Exactly one .bundle folder at zip root" ($bundleRoots.Count -eq 1) "Found: $($bundleRoots -join ', ')"
 
-$bundleRoot = if ($bundleRoots) { $bundleRoots[0] } else { "UNKNOWN.bundle" }
+# @(...) above forces array context. Without it, a single unique match unwraps to a
+# scalar string, and $bundleRoots[0] would return its first CHARACTER ("A"), not the
+# whole name — silently breaking every downstream "$bundleRoot/..." path check.
+$bundleRoot = if ($bundleRoots.Count -ge 1) { $bundleRoots[0] } else { "UNKNOWN.bundle" }
 
 $manifestEntry = "$bundleRoot/PackageContents.xml"
 Check "PackageContents.xml present at bundle root" ($entries -contains $manifestEntry)
