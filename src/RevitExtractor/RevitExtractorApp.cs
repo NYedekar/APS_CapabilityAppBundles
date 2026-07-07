@@ -6,6 +6,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 using DesignAutomationFramework;
 
 namespace RevitExtractor
@@ -65,6 +66,11 @@ namespace RevitExtractor
         private readonly Dictionary<ElementId, Dictionary<string, string>> _typeCache
             = new Dictionary<ElementId, Dictionary<string, string>>();
 
+        // The last (most recent) project phase — used to resolve which room a
+        // family instance sits in. Room bindings are phase-specific, so we look
+        // them up against the model's final phase.
+        private readonly Phase _lastPhase;
+
         // Categories to walk.  Add or remove rows here to change scope.
         private static readonly (string Label, BuiltInCategory BIC)[] TARGET_CATEGORIES =
         {
@@ -86,7 +92,22 @@ namespace RevitExtractor
             ("Grids",         BuiltInCategory.OST_Grids),
         };
 
-        internal Extractor(Document doc) => _doc = doc;
+        internal Extractor(Document doc)
+        {
+            _doc       = doc;
+            _lastPhase = GetLastPhase(doc);
+        }
+
+        private static Phase GetLastPhase(Document doc)
+        {
+            try
+            {
+                var phases = doc.Phases;
+                if (phases == null || phases.Size == 0) return null;
+                return phases.get_Item(phases.Size - 1) as Phase;
+            }
+            catch { return null; }
+        }
 
         // ── Top-level report ──────────────────────────────────────────────
 
@@ -194,10 +215,13 @@ namespace RevitExtractor
             {
                 try
                 {
+                    var (roomName, roomNumber) = GetInstanceRoom(elem);
                     results.Add(new ElementData
                     {
                         ElementId          = elem.Id.Value.ToString(),
                         FamilyType         = GetFamilyTypeName(elem),
+                        RoomName           = roomName,
+                        RoomNumber         = roomNumber,
                         InstanceParameters = ReadParameters(elem),
                         TypeParameters     = ReadTypeParameters(elem),
                     });
@@ -318,6 +342,49 @@ namespace RevitExtractor
             catch { return ""; }
         }
 
+        // ── Room placement (family instances only) ────────────────────────
+
+        /// <summary>
+        /// Resolves the room a family instance occupies, returning (name, number).
+        ///
+        /// Strategy — most reliable first:
+        ///   1. Phase-based get_Room(lastPhase)  ← geometry-accurate, phase-aware
+        ///   2. Phase-based From/To room         ← doors, windows (openings)
+        ///   3. Phase-less .Room / .FromRoom / .ToRoom fallbacks
+        ///
+        /// System families (walls, floors, etc.) are not FamilyInstances and
+        /// return ("", ""). Any API throw is swallowed — a missing room must
+        /// never abort the element.
+        /// </summary>
+        private (string Name, string Number) GetInstanceRoom(Element elem)
+        {
+            try
+            {
+                if (!(elem is FamilyInstance fi)) return ("", "");
+
+                Room room = null;
+
+                if (_lastPhase != null)
+                {
+                    try { room = fi.get_Room(_lastPhase); } catch { }
+                    if (room == null) { try { room = fi.get_FromRoom(_lastPhase); } catch { } }
+                    if (room == null) { try { room = fi.get_ToRoom(_lastPhase);   } catch { } }
+                }
+
+                if (room == null) { try { room = fi.Room;     } catch { } }
+                if (room == null) { try { room = fi.FromRoom; } catch { } }
+                if (room == null) { try { room = fi.ToRoom;   } catch { } }
+
+                if (room == null) return ("", "");
+
+                var name = room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString()
+                           ?? room.Name ?? "";
+                var number = room.Number ?? "";
+                return (name.Trim(), number.Trim());
+            }
+            catch { return ("", ""); }
+        }
+
         private static string GetFamilyTypeName(Element elem)
         {
             try
@@ -392,7 +459,7 @@ namespace RevitExtractor
             var sb = new StringBuilder();
 
             // Header
-            var header = new List<string> { "Category", "ElementId", "FamilyType" };
+            var header = new List<string> { "Category", "ElementId", "FamilyType", "RoomName", "RoomNumber" };
             header.AddRange(instanceColList);
             header.AddRange(typeColList.Select(c => "Type_" + c));
             sb.AppendLine(string.Join(",", header.Select(CsvEscape)));
@@ -409,6 +476,8 @@ namespace RevitExtractor
                         category,
                         elem.ElementId,
                         elem.FamilyType ?? "",
+                        elem.RoomName ?? "",
+                        elem.RoomNumber ?? "",
                     };
 
                     foreach (var col in instanceColList)
@@ -480,6 +549,12 @@ namespace RevitExtractor
 
         /// <summary>"FamilyName : TypeName" for family instances; element Name for system families.</summary>
         public string? FamilyType { get; set; }
+
+        /// <summary>Name of the room this family instance sits in. "" if none/not applicable.</summary>
+        public string? RoomName { get; set; }
+
+        /// <summary>Number of the room this family instance sits in. "" if none/not applicable.</summary>
+        public string? RoomNumber { get; set; }
 
         /// <summary>All instance parameters. Missing/null values are stored as "".</summary>
         public Dictionary<string, string> InstanceParameters { get; set; }
