@@ -71,6 +71,12 @@ namespace RevitExtractor
         // them up against the model's final phase.
         private readonly Phase _lastPhase;
 
+        // All placed, bounded rooms — cached once for the geometric point-in-room
+        // fallback. Many OOTB families (furniture, plumbing) have no Room
+        // Calculation Point, so FamilyInstance.Room returns null even when the
+        // instance clearly sits inside a room; IsPointInRoom recovers those.
+        private readonly IList<Room> _placedRooms;
+
         // Categories to walk.  Add or remove rows here to change scope.
         private static readonly (string Label, BuiltInCategory BIC)[] TARGET_CATEGORIES =
         {
@@ -94,8 +100,9 @@ namespace RevitExtractor
 
         internal Extractor(Document doc)
         {
-            _doc       = doc;
-            _lastPhase = GetLastPhase(doc);
+            _doc         = doc;
+            _lastPhase   = GetLastPhase(doc);
+            _placedRooms = GetPlacedRooms(doc);
         }
 
         private static Phase GetLastPhase(Document doc)
@@ -107,6 +114,20 @@ namespace RevitExtractor
                 return phases.get_Item(phases.Size - 1) as Phase;
             }
             catch { return null; }
+        }
+
+        private static IList<Room> GetPlacedRooms(Document doc)
+        {
+            try
+            {
+                return new FilteredElementCollector(doc)
+                    .OfCategory(BuiltInCategory.OST_Rooms)
+                    .WhereElementIsNotElementType()
+                    .OfType<Room>()
+                    .Where(r => r.Area > 0)   // placed + bounded only (unplaced rooms have Area 0)
+                    .ToList();
+            }
+            catch { return new List<Room>(); }
         }
 
         // ── Top-level report ──────────────────────────────────────────────
@@ -351,6 +372,8 @@ namespace RevitExtractor
         ///   1. Phase-based get_Room(lastPhase)  ← geometry-accurate, phase-aware
         ///   2. Phase-based From/To room         ← doors, windows (openings)
         ///   3. Phase-less .Room / .FromRoom / .ToRoom fallbacks
+        ///   4. Geometric point-in-room test     ← recovers families with no
+        ///      Room Calculation Point (most OOTB furniture, plumbing, fixtures)
         ///
         /// System families (walls, floors, etc.) are not FamilyInstances and
         /// return ("", ""). Any API throw is swallowed — a missing room must
@@ -374,6 +397,19 @@ namespace RevitExtractor
                 if (room == null) { try { room = fi.Room;     } catch { } }
                 if (room == null) { try { room = fi.FromRoom; } catch { } }
                 if (room == null) { try { room = fi.ToRoom;   } catch { } }
+
+                // Geometric fallback: test the instance's location point against
+                // each placed room. Recovers families with no Room Calculation Point.
+                if (room == null && _placedRooms.Count > 0
+                    && fi.Location is LocationPoint loc)
+                {
+                    var pt = loc.Point;
+                    foreach (var r in _placedRooms)
+                    {
+                        try { if (r.IsPointInRoom(pt)) { room = r; break; } }
+                        catch { }
+                    }
+                }
 
                 if (room == null) return ("", "");
 
