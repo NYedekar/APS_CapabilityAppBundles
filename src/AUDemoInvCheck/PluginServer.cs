@@ -17,8 +17,8 @@
 //  AUDemoInvCheckAutomation instance (not this), so InventorCoreConsole can call
 //  Run on a plain ComVisible object with default AutoDispatch.
 //
-//  REPLACE: AUDemoInvCheck, {6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}, AUDemoInvCheckAutomation.
-//  {6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B} is a FRESH GUID (run: uuidgen) — it becomes ClassId AND
+//  REPLACE: AUDemoInvCheck, E7450546-08F5-42AC-80D0-F21812AD05AD, AUDemoInvCheckAutomation.
+//  E7450546-08F5-42AC-80D0-F21812AD05AD is a FRESH GUID (run: uuidgen) — it becomes ClassId AND
 //  ClientId in App.Inventor.addin AND ProductCode in PackageContents.xml (all
 //  three collapse to the SAME GUID in this pattern; do not use three different
 //  GUIDs).
@@ -29,7 +29,7 @@ using Inventor;  // Inventor.ApplicationAddInServer embedded from Inventor.Inter
 
 namespace AUDemoInvCheck
 {
-    [Guid("{6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}")]
+    [Guid("E7450546-08F5-42AC-80D0-F21812AD05AD")]
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     public class PluginServer : ApplicationAddInServer

@@ -10,7 +10,7 @@
      - Platform="Inventor" is required for Inventor DA bundles.
      - ModuleName MUST point to the .Inventor.addin manifest, not the DLL directly.
      - ProductCode uses the SAME GUID as ClassId/ClientId in App.Inventor.addin
-       ({6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}) — this is the pattern the real InventorBOMExtractor
+       (E7450546-08F5-42AC-80D0-F21812AD05AD) — this is the pattern the real InventorBOMExtractor
        bundle ships (all three collapse to one GUID). Use a FRESH GUID
        (run: uuidgen) for a new bundle.
      - Both LoadOnAutoCADStartup and LoadOnCommandInvocation are False in the
@@ -18,11 +18,11 @@
        command-invocation model) — keep them False unless you have a verified
        reason to change them.
 
-     REPLACE: AUDemoInvCheck, {6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}.
+     REPLACE: AUDemoInvCheck, E7450546-08F5-42AC-80D0-F21812AD05AD.
      ════════════════════════════════════════════════════════════════════════════ -->
 <ApplicationPackage SchemaVersion="1.0"
                     Version="1.0"
-                    ProductCode="{{6B3CF117-AB66-4B2E-9A50-5BF5D621CC6B}}"
+                    ProductCode="{E7450546-08F5-42AC-80D0-F21812AD05AD}"
                     Name="AUDemoInvCheck"
                     Description="One-line description of what this bundle does."
                     Author="APS Team">
