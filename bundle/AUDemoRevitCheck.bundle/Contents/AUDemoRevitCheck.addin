@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  APS DA — Revit add-in manifest (.addin template)
+
+  CRITICAL RULES (from hard-won experience):
+  - Type MUST be "DBApplication" — never "Application" (UI apps don't work headlessly)
+  - Assembly uses the .\ prefix — just the DLL name, resolved relative to THIS .addin file
+  - This file MUST live in Contents/ ALONGSIDE the DLL (not at the bundle root)
+  - FullClassName must EXACTLY match the C# namespace + class name
+  - Generate a FRESH GUID for AddInId — never reuse someone else's (run: uuidgen)
+
+  REPLACE: AUDemoRevitCheck, AUDemoRevitCheck.AUDemoRevitCheckApp, {FCA2CE3B-AB3D-4D66-9F7B-18C4FBF513A3}
+-->
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>AUDemoRevitCheck</Name>
+    <Assembly>.\AUDemoRevitCheck.dll</Assembly>
+    <AddInId>{FCA2CE3B-AB3D-4D66-9F7B-18C4FBF513A3}</AddInId>
+    <FullClassName>AUDemoRevitCheck.AUDemoRevitCheckApp</FullClassName>
+    <VendorId>APS</VendorId>
+    <VendorDescription>APS Design Automation</VendorDescription>
+  </AddIn>
+</RevitAddIns>
