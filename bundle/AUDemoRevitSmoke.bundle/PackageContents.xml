@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- ════════════════════════════════════════════════════════════════════════════
+     APS DA — Revit AppBundle manifest (PackageContents.xml template)
+
+     CRITICAL RULES (from hard-won experience):
+     - ModuleName MUST point to the .addin FILE, not the DLL.
+     - RuntimeRequirements MUST be inside <Components>, never at top level.
+     - SeriesMin/SeriesMax MUST match the Revit engine version used in the Activity.
+       Valid series values: R2024, R2025, R2026.
+     - Unlike AutoCAD, the Revit manifest DOES carry AutodeskProduct / SupportedLocales /
+       ProductType — these are the values the official Revit DA sample ships.
+
+     REPLACE: AUDemoRevitSmoke, R2026 (e.g. R2026 — match your activity engine)
+     ════════════════════════════════════════════════════════════════════════════ -->
+<ApplicationPackage SchemaVersion="1.0"
+                    AutodeskProduct="Revit"
+                    Name="AUDemoRevitSmoke"
+                    Description="One-line description of what this bundle does."
+                    AppVersion="1.0.0"
+                    SupportedLocales="Enu"
+                    ProductType="Application"
+                    Author="APS Team">
+
+  <CompanyDetails Name="APS" Email="" Url="" />
+
+  <Components Description="AUDemoRevitSmoke core plugin">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="AUDemoRevitSmoke"
+                    ModuleName="./Contents/AUDemoRevitSmoke.addin"
+                    Version="1.0.0"
+                    LoadOnRevitStartup="True" />
+  </Components>
+
+</ApplicationPackage>
